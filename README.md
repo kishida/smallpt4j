@@ -1,7 +1,6 @@
-# smallpt4j
+# smallpt4s
 
-Transport of smallpt for Java
-http://www.kevinbeason.com/smallpt/
+Scala porting of https://github.com/kishida/smallpt4j .
 
 samples=4000
 
