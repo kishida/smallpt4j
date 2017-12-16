@@ -55,7 +55,7 @@ public class SmallPT {
             return new Vec(x * b, y * b, z * b);
         }
 
-        Vec mult(Vec b) {
+        Vec vecmul(Vec b) {
             return new Vec(x * b.x, y * b.y, z * b.z);
         }
 
@@ -87,8 +87,8 @@ public class SmallPT {
 
     };
 
-    static enum Reflection {
-        DIFF, SPEC, REFR
+    private static enum Reflection {
+        DIFFUSE, SPECULAR, REFRECTION
     };  // material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()
 
     static class Sphere {
@@ -120,15 +120,15 @@ public class SmallPT {
         }
     };
     static Sphere spheres[] = {//Scene: radius, position, emission, color, material
-        new Sphere(1e5,  new Vec(1e5 + 1, 40.8, 81.6),   new Vec(), new Vec(.75, .25, .25), Reflection.DIFF),//Left
-        new Sphere(1e5,  new Vec(-1e5 + 99, 40.8, 81.6), new Vec(), new Vec(.25, .25, .75), Reflection.DIFF),//Rght
-        new Sphere(1e5,  new Vec(50, 40.8, 1e5),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFF),//Back
-        new Sphere(1e5,  new Vec(50, 40.8, -1e5 + 170),  new Vec(), new Vec(), Reflection.DIFF),//Frnt
-        new Sphere(1e5,  new Vec(50, 1e5, 81.6),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFF),//Botm
-        new Sphere(1e5,  new Vec(50, -1e5 + 81.6, 81.6), new Vec(), new Vec(.75, .75, .75), Reflection.DIFF),//Top
-        new Sphere(16.5, new Vec(27, 16.5, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPEC),//Mirr
-        new Sphere(16.5, new Vec(73, 16.5, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFR),//Glas
-        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(12, 12, 12), new Vec(), Reflection.DIFF) //Lite
+        new Sphere(1e5,  new Vec(1e5 + 1, 40.8, 81.6),   new Vec(), new Vec(.75, .25, .25), Reflection.DIFFUSE),//Left
+        new Sphere(1e5,  new Vec(-1e5 + 99, 40.8, 81.6), new Vec(), new Vec(.25, .25, .75), Reflection.DIFFUSE),//Rght
+        new Sphere(1e5,  new Vec(50, 40.8, 1e5),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Back
+        new Sphere(1e5,  new Vec(50, 40.8, -1e5 + 170),  new Vec(), new Vec(), Reflection.DIFFUSE),//Frnt
+        new Sphere(1e5,  new Vec(50, 1e5, 81.6),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Botm
+        new Sphere(1e5,  new Vec(50, -1e5 + 81.6, 81.6), new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Top
+        new Sphere(16.5, new Vec(27, 16.5, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
+        new Sphere(16.5, new Vec(73, 16.5, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
+        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(12, 12, 12), new Vec(), Reflection.DIFFUSE) //Lite
     };
 
     static double clamp(double x) {
@@ -138,9 +138,9 @@ public class SmallPT {
     static int toInt(double x) {
         return Math.min(255, (int) (Math.pow(clamp(x), 1 / 2.2) * 255 + .5));
     }
-    static final double inf = 1e20;
+    private static final double INF = 1e20;
     static boolean intersect(Ray r, double[] t, int[] id) {
-        t[0] = inf;
+        t[0] = INF;
         for (int i = 0; i < spheres.length; ++i) {
             double d = spheres[i].intersect(r);
             if (d != 0 && (d < t[0])) {
@@ -148,7 +148,7 @@ public class SmallPT {
                 id[0] = i;
             }
         }
-        return t[0] < inf;
+        return t[0] < INF;
     }
 
     static Random rnd = new Random();
@@ -177,7 +177,7 @@ public class SmallPT {
         if (null == obj.reflection) {
             throw new IllegalStateException();
         } else switch (obj.reflection) {
-            case DIFF:
+            case DIFFUSE:
                 double r1 = 2 * Math.PI * rnd.nextDouble(),
                         r2 = rnd.nextDouble(),
                         r2s = sqrt(r2);
@@ -185,11 +185,11 @@ public class SmallPT {
                         u = ((Math.abs(w.x) > .1 ? new Vec(0, 1, 0) : new Vec(1, 0, 0)).mod(w)).normalize(),
                         v = w.mod(u);
                 Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
-                return obj.emission.add(f.mult(radiance(new Ray(x, d), depth)));
-            case SPEC:
+                return obj.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
+            case SPECULAR:
                 // Ideal SPECULAR reflection
-                return obj.emission.add(f.mult(radiance(new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)));
-            case REFR:
+                return obj.emission.add(f.vecmul(radiance(new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)));
+            case REFRECTION:
                 Ray reflectionRay = new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist))));     // Ideal dielectric REFRACTION
                 boolean into = n.dot(nl) > 0;                // Ray from outside going in?
                 double nc = 1,
@@ -198,8 +198,9 @@ public class SmallPT {
                         ddn = r.dist.dot(nl),
                         cos2t = 1 - nnt * nnt * (1 - ddn * ddn);
                 if (cos2t < 0) { // Total internal reflection
-                    return obj.emission.add(f.mult(radiance(reflectionRay, depth)));
-                }   Vec tdir = (r.dist.mul(nnt).sub(n.mul((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t))))).normalize();
+                    return obj.emission.add(f.vecmul(radiance(reflectionRay, depth)));
+                }
+                Vec tdir = (r.dist.mul(nnt).sub(n.mul((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t))))).normalize();
                 double a = nt - nc,
                         b = nt + nc,
                         R0 = a * a / (b * b),
@@ -209,7 +210,7 @@ public class SmallPT {
                         probability = .25 + .5 * Re,
                         RP = Re / probability,
                         TP = Tr / (1 - probability);
-                return obj.emission.add(f.mult(depth > 2 ? (rnd.nextDouble() < probability
+                return obj.emission.add(f.vecmul(depth > 2 ? (rnd.nextDouble() < probability
                         ? // Russian roulette
                         radiance(reflectionRay, depth).mul(RP) : radiance(new Ray(x, tdir), depth).mul(TP))
                         : radiance(reflectionRay, depth).mul(Re).add(radiance(new Ray(x, tdir), depth).mul(Tr))));
