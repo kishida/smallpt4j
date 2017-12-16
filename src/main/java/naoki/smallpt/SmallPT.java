@@ -1,3 +1,13 @@
+/*
+ Copyright (c) 2017 Naoki Kishida (naokikishida@gmail.com / twitter: @kis)
+This software is released under the MIT License.
+( https://github.com/kishida/smallpt4j/blob/master/LICENSE.txt )
+
+This is based on the smallpt( http://www.kevinbeason.com/smallpt/ )
+that is released under the MIT License.
+( https://github.com/kishida/smallpt4j/blob/master/smallpt_LICENSE.txt )
+*/
+
 package naoki.smallpt;
 
 import static java.lang.Math.cos;
