@@ -213,7 +213,7 @@ public class SmallPT {
         System.out.println(f.getAbsolutePath());
         int w = 1024,
                 h = 768,
-                samps = argv.length == 2 ? Integer.parseInt(argv[1]) / 4 : 1000; // # samples
+                samps = argv.length == 2 ? Integer.parseInt(argv[1]) / 4 : 2; // # samples
 
         Ray cam = new Ray(new Vec(50, 52, 295.6), new Vec(0, -0.042612, -1).normalize()); // cam pos, dir
         Vec cx = new Vec(w * .5135 / h, 0, 0),
