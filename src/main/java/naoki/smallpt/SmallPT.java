@@ -43,19 +43,19 @@ public class SmallPT {
         }
 
         Vec add(Vec b) {
-            return new Vec(x + b.x, y + b.y, z + b.z);
+            return new MutVec(x + b.x, y + b.y, z + b.z);
         }
 
         Vec sub(Vec b) {
-            return new Vec(x - b.x, y - b.y, z - b.z);
+            return new MutVec(x - b.x, y - b.y, z - b.z);
         }
 
         Vec mul(double b) {
-            return new Vec(x * b, y * b, z * b);
+            return new MutVec(x * b, y * b, z * b);
         }
 
         Vec vecmul(Vec b) {
-            return new Vec(x * b.x, y * b.y, z * b.z);
+            return new MutVec(x * b.x, y * b.y, z * b.z);
         }
 
         Vec normalize() {
@@ -71,7 +71,59 @@ public class SmallPT {
         } // cross:
 
         Vec mod(Vec b) {
-            return new Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
+            return new MutVec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
+        }
+
+        Vec immut() {
+            return this;
+        }
+    }
+
+    static class MutVec extends Vec{
+
+        public MutVec(double x, double y, double z) {
+            super(x, y, z);
+        }
+
+        public MutVec() {
+        }
+
+        @Override
+        Vec add(Vec b) {
+            x += b.x;
+            y += b.y;
+            z += b.z;
+            return this;
+        }
+
+        @Override
+        Vec sub(Vec b) {
+            x -= b.x;
+            y -= b.y;
+            z -= b.z;
+            return this;
+        }
+
+        @Override
+        Vec mul(double b) {
+            x *= b;
+            y *= b;
+            z *= b;
+            return this;
+        }
+
+        @Override
+        Vec normalize() {
+            double dist = Math.sqrt(x * x + y * y + z * z);
+            x /= dist;
+            y /= dist;
+            z /= dist;
+            return this;
+        }
+
+        @Override
+        Vec immut() {
+            return new Vec(x, y, z);
         }
     }
 
@@ -80,8 +132,8 @@ public class SmallPT {
         Vec obj, dist;
 
         public Ray(Vec o, Vec d) {
-            this.obj = o;
-            this.dist = d;
+            this.obj = o.immut();
+            this.dist = d.immut();
         }
 
     };
@@ -98,9 +150,9 @@ public class SmallPT {
 
         public Sphere(double rad, Vec p, Vec e, Vec c, Reflection refl) {
             this.rad = rad;
-            this.pos = p;
-            this.emission = e;
-            this.color = c;
+            this.pos = p.immut();
+            this.emission = e.immut();
+            this.color = c.immut();
             this.reflection = refl;
         }
 
@@ -152,6 +204,9 @@ public class SmallPT {
 
     static Random rnd = new Random(123);
 
+    static final Vec UNIT_X = new Vec(1, 0, 0);
+    static final Vec UNIT_Y = new Vec(0, 1, 0);
+
     static Vec radiance(Ray r, int depth) {
         double[] t = {0};                               // distance to intersection
         int[] id = {0};                               // id of intersected object
@@ -159,9 +214,9 @@ public class SmallPT {
             return new Vec(); // if miss, return black
         }
         Sphere obj = spheres[id[0]];        // the hit object
-        Vec x = r.obj.add(r.dist.mul(t[0]));
+        Vec x = r.obj.add(r.dist.mul(t[0])).immut();
 
-        Vec n = x.sub(obj.pos).normalize();
+        Vec n = x.sub(obj.pos).normalize().immut();
         Vec nl = n.dot(r.dist) < 0 ? n : n.mul(-1);
         Vec f = obj.color;
         double p = Math.max(f.x, Math.max(f.y, f.z)); // max refl
@@ -180,11 +235,13 @@ public class SmallPT {
                 double r1 = 2 * Math.PI * rnd.nextDouble(),
                         r2 = rnd.nextDouble(),
                         r2s = sqrt(r2);
-                Vec w = nl,
-                        u = ((Math.abs(w.x) > .1 ? new Vec(0, 1, 0) : new Vec(1, 0, 0)).mod(w)).normalize(),
+                Vec w = nl.immut(),
+                        u = (Math.abs(w.x) > .1 ? UNIT_Y : UNIT_X).mod(w).normalize(),
                         v = w.mod(u);
-                Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
-                return obj.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
+                Vec d = (u.mul(cos(r1) * r2s)
+                        .add(v.mul(sin(r1) * r2s))
+                        .add(w.mul(sqrt(1 - r2)))).normalize();
+                return f.vecmul(radiance(new Ray(x, d), depth)).add(obj.emission);
             case SPECULAR:
                 // Ideal SPECULAR reflection
                 return obj.emission.add(f.vecmul(radiance(new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)));
@@ -224,7 +281,7 @@ public class SmallPT {
 
         Ray cam = new Ray(new Vec(50, 52, 295.6), new Vec(0, -0.042612, -1).normalize()); // cam pos, dir
         Vec cx = new Vec(w * .5135 / h, 0, 0),
-                cy = (cx.mod(cam.dist)).normalize().mul(.5135);
+                cy = (cx.mod(cam.dist)).normalize().mul(.5135).immut();
 
         Instant start = Instant.now();
         Vec[] c = new Vec[w * h];
@@ -238,7 +295,7 @@ public class SmallPT {
                 int i = (h - y - 1) * w + x;
                 for (int sy = 0; sy < 2; sy++) { // 2x2 subpixel rows
                     for (int sx = 0; sx < 2; sx++) {        // 2x2 subpixel cols
-                        Vec r = new Vec();
+                        Vec r = new MutVec();
                         for (int s = 0; s < samps; s++) {
                             double r1 = 2 * rnd.nextDouble(),
                                     dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
@@ -249,7 +306,7 @@ public class SmallPT {
                             r = r.add(radiance(new Ray(cam.obj.add(d.mul(140)), d.normalize()), 0));
                         } // Camera rays are pushed ^^^^^ forward to start in interior
                         r = r.mul(1. / samps);
-                        c[i] = c[i].add(new Vec(clamp(r.x), clamp(r.y), clamp(r.z)).mul(.25));
+                        c[i] = c[i].add(new MutVec(clamp(r.x), clamp(r.y), clamp(r.z)).mul(.25));
                     }
                 }
             }
