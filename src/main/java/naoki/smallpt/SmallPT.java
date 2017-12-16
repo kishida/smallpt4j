@@ -20,6 +20,8 @@ import java.awt.image.BufferedImage;
 import java.awt.image.MemoryImageSource;
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -229,6 +231,8 @@ public class SmallPT {
         Ray cam = new Ray(new Vec(50, 52, 295.6), new Vec(0, -0.042612, -1).normalize()); // cam pos, dir
         Vec cx = new Vec(w * .5135 / h, 0, 0),
                 cy = (cx.mod(cam.dist)).normalize().mul(.5135);
+
+        Instant start = Instant.now();
         Vec[] c = new Vec[w * h];
         Arrays.fill(c, new Vec());
 
@@ -257,6 +261,8 @@ public class SmallPT {
             }
         });
 
+        Instant finish = Instant.now();
+        System.out.println(Duration.between(start, finish));
         int[] imagesource = new int[w * h];
         for (int i = 0; i < w * h; ++i) {
             imagesource[i] = 255 << 24 | toInt(c[i].x) << 16 | toInt(c[i].y) << 8 | toInt(c[i].z);
