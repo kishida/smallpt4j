@@ -212,9 +212,8 @@ public class SmallPT {
                         probability = .25 + .5 * Re,
                         RP = Re / probability,
                         TP = Tr / (1 - probability);
-                return obj.emission.add(f.vecmul(depth > 2 ? (rnd.nextDouble() < probability
-                        ? // Russian roulette
-                        radiance(reflectionRay, depth).mul(RP) : radiance(new Ray(x, tdir), depth).mul(TP))
+                return obj.emission.add(f.vecmul(depth > 2 ? (rnd.nextDouble() < probability // Russian roulette
+                        ? radiance(reflectionRay, depth).mul(RP) : radiance(new Ray(x, tdir), depth).mul(TP))
                         : radiance(reflectionRay, depth).mul(Re).add(radiance(new Ray(x, tdir), depth).mul(Tr))));
             default:
                 throw new IllegalStateException();
@@ -222,8 +221,6 @@ public class SmallPT {
     }
 
     public static void main(String... argv) throws IOException {
-        File f = new File("image.png");
-        System.out.println(f.getAbsolutePath());
         int w = 1024,
                 h = 768,
                 samps = argv.length == 2 ? Integer.parseInt(argv[1]) / 4 : 2; // # samples
@@ -271,6 +268,7 @@ public class SmallPT {
         BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         out.createGraphics().drawImage(image, 0, 0, null);
 
+        File f = new File("image.png");
         ImageIO.write(out, "png", f);
 
     }
