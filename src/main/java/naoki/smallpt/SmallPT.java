@@ -256,7 +256,10 @@ public class SmallPT {
         });
 
         Instant finish = Instant.now();
-        System.out.println(Duration.between(start, finish));
+        System.out.printf("Samples:%d Type:%s Time:%s%n",
+                samps * 4,
+                "master",
+                Duration.between(start, finish));
         int[] imagesource = new int[w * h];
         for (int i = 0; i < w * h; ++i) {
             imagesource[i] = 255 << 24 | toInt(c[i].x) << 16 | toInt(c[i].y) << 8 | toInt(c[i].z);
