@@ -14,10 +14,7 @@ import static java.lang.Math.cos;
 import static java.lang.Math.sin;
 import static java.lang.Math.sqrt;
 
-import java.awt.Image;
-import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
-import java.awt.image.MemoryImageSource;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
@@ -264,10 +261,8 @@ public class SmallPT {
         for (int i = 0; i < w * h; ++i) {
             imagesource[i] = 255 << 24 | toInt(c[i].x) << 16 | toInt(c[i].y) << 8 | toInt(c[i].z);
         }
-        Image image = Toolkit.getDefaultToolkit().createImage(new MemoryImageSource(w, h, imagesource, 0, w));
         BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        out.createGraphics().drawImage(image, 0, 0, null);
-
+        out.setRGB(0, 0, w, h, imagesource, 0, w);
         File f = new File("image.png");
         ImageIO.write(out, "png", f);
 
