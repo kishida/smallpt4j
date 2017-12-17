@@ -150,7 +150,7 @@ public class SmallPT {
         return t[0] < INF;
     }
 
-    static Random rnd = new Random();
+    static Random rnd = new Random(123);
 
     static Vec radiance(Ray r, int depth) {
         double[] t = {0};                               // distance to intersection
