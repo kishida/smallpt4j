@@ -16,32 +16,46 @@ import java.util.stream.IntStream
 import javax.imageio.ImageIO
 
 object SmallPT {
+  object Vec {
+    def apply(): Vec = Vec()
+  }
   case class Vec(var x: Double, var y: Double, var z: Double) {
-    def this() {
+    private def this() {
       this(0, 0, 0)
     }
 
-    def add(b: Vec) = Vec(x + b.x, y + b.y, z + b.z)
+    def +(that: Vec): Vec = this add that
 
-    def sub(b: Vec) = Vec(x - b.x, y - b.y, z - b.z)
+    def -(that: Vec): Vec = this sub that
 
-    def mul(b: Double) = Vec(x * b, y * b, z * b)
+    def *(that: Vec): Vec = this mult that
 
-    def mult(b: Vec) = Vec(x * b.x, y * b.y, z * b.z)
+    def *(that: Double): Vec = this mul that
 
-    def normalize = {
+    def %(that: Vec): Vec = this mod that
+
+    def add(b: Vec): Vec = Vec(x + b.x, y + b.y, z + b.z)
+
+    def sub(b: Vec): Vec = Vec(x - b.x, y - b.y, z - b.z)
+
+    def mul(b: Double): Vec = Vec(x * b, y * b, z * b)
+
+    def mult(b: Vec): Vec = Vec(x * b.x, y * b.y, z * b.z)
+
+    def mod(b: Vec): Vec = {
+      Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x)
+    }
+
+    def normalize: this.type = {
       val dist = Math.sqrt(x * x + y * y + z * z)
-      x /= dist
-      y /= dist
-      z /= dist
+      this.x /= dist
+      this.y /= dist
+      this.z /= dist
       this
     }
 
     def dot(b: Vec): Double = x * b.x + y * b.y + z * b.z
 
-    def mod(b: Vec): Vec = {
-      Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x)
-    }
   }
 
   case class Ray(var obj: Vec, var dist: Vec)
@@ -77,15 +91,15 @@ object SmallPT {
   }
 
   val spheres = Array(//Scene: radius, position, emission, color, material
-    Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6), new Vec, Vec(.75, .25, .25), Reflection.DIFF), //Left
-    Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), new Vec, Vec(.25, .25, .75), Reflection.DIFF), //Rght
-    Sphere(1e5, Vec(50, 40.8, 1e5), new Vec, Vec(.75, .75, .75), Reflection.DIFF), //Back
-    Sphere(1e5, Vec(50, 40.8, -1e5 + 170), new Vec, new Vec, Reflection.DIFF), //Frnt
-    Sphere(1e5, Vec(50, 1e5, 81.6), new Vec, Vec(.75, .75, .75), Reflection.DIFF), //Botm
-    Sphere(1e5, Vec(50, -1e5 + 81.6, 81.6), new Vec, Vec(.75, .75, .75), Reflection.DIFF), //Top
-    Sphere(16.5, Vec(27, 16.5, 47), new Vec, Vec(1, 1, 1).mul(.999), Reflection.SPEC), //Mirr
-    Sphere(16.5, Vec(73, 16.5, 78), new Vec, Vec(1, 1, 1).mul(.999), Reflection.REFR), //Glas
-    Sphere(600, Vec(50, 681.6 - .27, 81.6), Vec(12, 12, 12), new Vec, Reflection.DIFF) //Lite
+    Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6), Vec(), Vec(.75, .25, .25), Reflection.DIFF), //Left
+    Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(), Vec(.25, .25, .75), Reflection.DIFF), //Rght
+    Sphere(1e5, Vec(50, 40.8, 1e5), Vec(), Vec(.75, .75, .75), Reflection.DIFF), //Back
+    Sphere(1e5, Vec(50, 40.8, -1e5 + 170), Vec(), Vec(), Reflection.DIFF), //Frnt
+    Sphere(1e5, Vec(50, 1e5, 81.6), Vec(), Vec(.75, .75, .75), Reflection.DIFF), //Botm
+    Sphere(1e5, Vec(50, -1e5 + 81.6, 81.6), Vec(), Vec(.75, .75, .75), Reflection.DIFF), //Top
+    Sphere(16.5, Vec(27, 16.5, 47), Vec(), Vec(1, 1, 1).mul(.999), Reflection.SPEC), //Mirr
+    Sphere(16.5, Vec(73, 16.5, 78), Vec(), Vec(1, 1, 1).mul(.999), Reflection.REFR), //Glas
+    Sphere(600, Vec(50, 681.6 - .27, 81.6), Vec(12, 12, 12), Vec(), Reflection.DIFF) //Lite
   )
 
   def clamp(x: Double): Double = {
@@ -122,7 +136,7 @@ object SmallPT {
     val t: Array[Double] = Array(0)
     // distance to intersection
     val id: Array[Int] = Array(0) // id of intersected object
-    if (!intersect(r, t, id)) return new Vec // if miss, return black
+    if (!intersect(r, t, id)) return Vec() // if miss, return black
     val obj = spheres(id(0))
     // the hit object
     val x = r.obj.add(r.dist.mul(t(0)))
@@ -148,8 +162,8 @@ object SmallPT {
         }
         else {
           Vec(1, 0, 0)
-        }).mod(w).normalize
-        val v = w.mod(u)
+        } % w).normalize
+        val v = w % u
         val d = u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2))).normalize
         obj.emission.add(f.mult(radiance(Ray(x, d), depth)))
       case Reflection.SPEC =>
@@ -210,7 +224,7 @@ object SmallPT {
     val cx = Vec(w * .5135 / h, 0, 0)
     val cy = cx.mod(cam.dist).normalize.mul(.5135)
     val c = new Array[Vec](w * h)
-    Arrays.fill(c.asInstanceOf[Array[AnyRef]], new Vec)
+    Arrays.fill(c.asInstanceOf[Array[AnyRef]], Vec())
     val count = new AtomicInteger
     IntStream.range(0, h).parallel.forEach{y =>
       def foo(y: Int) = {
@@ -222,7 +236,7 @@ object SmallPT {
           while (sy < 2) { // 2x2 subpixel rows
             var sx = 0
             while (sx < 2) { // 2x2 subpixel cols
-              var r = new Vec
+              var r = Vec()
               var s = 0
               while (s < samps) {
                 val r1 = 2 * rnd.nextDouble
@@ -237,7 +251,7 @@ object SmallPT {
                 s += 1
               }
               r = r.mul(1.0 / samps)
-              c(i) = c(i).add(new Vec(clamp(r.x), clamp(r.y), clamp(r.z)).mul(.25))
+              c(i) = c(i).add(Vec(clamp(r.x), clamp(r.y), clamp(r.z)).mul(.25))
               sx += 1
             }
             sy += 1
