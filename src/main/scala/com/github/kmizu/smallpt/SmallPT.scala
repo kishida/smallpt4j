@@ -17,7 +17,7 @@ import javax.imageio.ImageIO
 
 object SmallPT {
   object Vec {
-    def apply(): Vec = Vec()
+    def apply(): Vec = new Vec()
   }
   case class Vec(var x: Double, var y: Double, var z: Double) {
     private def this() {
@@ -65,12 +65,13 @@ object SmallPT {
     val DIFF, SPEC, REFR = Value
   }
 
-  case class Sphere(var rad: Double, // radius
-                    var pos: Vec,
-                    var emission: Vec,
-                    var color: Vec, // position, emission, color
-                    var reflection: Reflection.Reflection // reflection type (DIFFuse, SPECular, REFRactive)
-                   ) {
+  case class Sphere(
+    var rad: Double, // radius
+    var pos: Vec,
+    var emission: Vec,
+    var color: Vec, // position, emission, color
+    var reflection: Reflection.Reflection // reflection type (DIFFuse, SPECular, REFRactive)
+    ) {
     def intersect(r: Ray): Double = { // returns distance, 0 if nohit
       val op = pos.sub(r.obj)
       // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
@@ -146,130 +147,128 @@ object SmallPT {
     var f = obj.color
     val p = Math.max(f.x, Math.max(f.y, f.z)) // max refl
     depth += 1
-    if (depth > 5) if (depth < 50 && rnd.nextDouble < p) { // 最大反射回数を設定
-      f = f.mul(1 / p)
+    if (depth > 5) {
+      if (depth < 50 && rnd.nextDouble < p) { // 最大反射回数を設定
+        f = f.mul(1 / p)
+      }
+      else {
+        return obj.emission //R.R.
+      }
     }
-    else return obj.emission //R.R.
-    if (null == obj.reflection) throw new IllegalStateException
-    else obj.reflection match {
-      case Reflection.DIFF =>
-        val r1 = 2 * Math.PI * rnd.nextDouble
-        val r2 = rnd.nextDouble
-        val r2s = sqrt(r2)
-        val w = nl
-        val u = (if (Math.abs(w.x) > .1) {
-          Vec(0, 1, 0)
-        }
-        else {
-          Vec(1, 0, 0)
-        } % w).normalize
-        val v = w % u
-        val d = u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2))).normalize
-        obj.emission.add(f.mult(radiance(Ray(x, d), depth)))
-      case Reflection.SPEC =>
-        // Ideal SPECULAR reflection
-        obj.emission.add(f.mult(radiance(Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)))
-      case Reflection.REFR =>
-        val reflectionRay = Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist))))
-        // Ideal dielectric REFRACTION
-        val into = n.dot(nl) > 0
-        // Ray from outside going in?
-        val nc = 1
-        val nt = 1.5
-        val nnt = if (into) nc / nt
-        else nt / nc
-        val ddn = r.dist.dot(nl)
-        val cos2t = 1 - nnt * nnt * (1 - ddn * ddn)
-        if (cos2t < 0) { // Total internal reflection
-          return obj.emission.add(f.mult(radiance(reflectionRay, depth)))
-        }
-        val tdir = r.dist.mul(nnt).sub(n.mul((if (into) {
-          1
-        }
-        else {
-          -(1)
-        }) * (ddn * nnt + sqrt(cos2t)))).normalize
-        val a = nt - nc
-        val b = nt + nc
-        val R0 = a * a / (b * b)
-        val c = 1 - (if (into) -ddn
-        else tdir.dot(n))
-        val Re = R0 + (1 - R0) * c * c * c * c * c
-        val Tr = 1 - Re
-        val probability =.25 +.5 * Re
-        val RP = Re / probability
-        val TP = Tr / (1 - probability)
-        obj.emission.add(f.mult(if (depth > 2) if (rnd.nextDouble < probability) { // Russian roulette
-          radiance(reflectionRay, depth).mul(RP)
-        }
-        else {
-          radiance(Ray(x, tdir), depth).mul(TP)
-        }
-        else radiance(reflectionRay, depth).mul(Re).add(radiance(Ray(x, tdir), depth).mul(Tr))))
-      case _ =>
-        throw new IllegalStateException
+    if (obj.reflection eq null) {
+      throw new IllegalStateException
+    } else {
+      obj.reflection match {
+        case Reflection.DIFF =>
+          val r1 = 2 * Math.PI * rnd.nextDouble
+          val r2 = rnd.nextDouble
+          val r2s = sqrt(r2)
+          val w = nl
+          val u = (if (Math.abs(w.x) > .1) {
+            Vec(0, 1, 0)
+          }
+          else {
+            Vec(1, 0, 0)
+          } % w).normalize
+          val v = w % u
+          val d = u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2))).normalize
+          obj.emission.add(f.mult(radiance(Ray(x, d), depth)))
+        case Reflection.SPEC =>
+          // Ideal SPECULAR reflection
+          obj.emission.add(f.mult(radiance(Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)))
+        case Reflection.REFR =>
+          val reflectionRay = Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist))))
+          // Ideal dielectric REFRACTION
+          val into = n.dot(nl) > 0
+          // Ray from outside going in?
+          val nc = 1
+          val nt = 1.5
+          val nnt = if (into) nc / nt
+          else nt / nc
+          val ddn = r.dist.dot(nl)
+          val cos2t = 1 - nnt * nnt * (1 - ddn * ddn)
+          if (cos2t < 0) return obj.emission.add(f.mult(radiance(reflectionRay, depth)))
+          val tdir = r.dist.mul(nnt).sub(n.mul((if (into) {
+            1
+          }
+          else {
+            -1
+          }) * (ddn * nnt + sqrt(cos2t)))).normalize
+          val a = nt - nc
+          val b = nt + nc
+          val R0 = a * a / (b * b)
+          val c = 1 - (if (into) -ddn else tdir.dot(n))
+          val Re = R0 + (1 - R0) * c * c * c * c * c
+          val Tr = 1 - Re
+          val probability =.25 +.5 * Re
+          val RP = Re / probability
+          val TP = Tr / (1 - probability)
+          obj.emission.add(f.mult(
+            if (depth > 2)
+              if (rnd.nextDouble < probability) { // Russian roulette
+                radiance(reflectionRay, depth).mul(RP)
+              }
+              else {
+                radiance(Ray(x, tdir), depth).mul(TP)
+              }
+            else
+              radiance(reflectionRay, depth).mul(Re).add(radiance(Ray(x, tdir), depth).mul(Tr))
+          ))
+        case _ =>
+          throw new IllegalStateException
+      }
     }
   }
 
+
   def main(argv: Array[String]): Unit = {
     val f = new File("image.png")
-    System.out.println(f.getAbsolutePath)
+    println(f.getAbsolutePath)
     val w = 1024
     val h = 768
-    val samps = if (argv.length == 2) argv(1).toInt / 4
-    else 2
-    // # samples
+    val samples = if (argv.length == 1) argv(0).toInt / 4 else 2
     val cam = Ray(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).normalize)
-    // cam pos, dir
     val cx = Vec(w * .5135 / h, 0, 0)
-    val cy = cx.mod(cam.dist).normalize.mul(.5135)
+    val cy = (cx % cam.dist).normalize * 0.5135
     val c = new Array[Vec](w * h)
     Arrays.fill(c.asInstanceOf[Array[AnyRef]], Vec())
     val count = new AtomicInteger
     IntStream.range(0, h).parallel.forEach{y =>
-      def foo(y: Int) = {
-        printf("Rendering (%d spp) %5.2f%%%n", samps * 4, 100.0 * count.getAndIncrement / (h - 1))
-        var x = 0
-        while (x < w) { // Loop cols
+      def render(y: Int) = {
+        printf("Rendering (%d spp) %5.2f%%%n", samples * 4, 100.0 * count.getAndIncrement / (h - 1))
+        for(x <- 0 until w) {
           val i = (h - y - 1) * w + x
           var sy = 0
-          while (sy < 2) { // 2x2 subpixel rows
-            var sx = 0
-            while (sx < 2) { // 2x2 subpixel cols
-              var r = Vec()
-              var s = 0
-              while (s < samps) {
-                val r1 = 2 * rnd.nextDouble
-                val dx = if (r1 < 1) sqrt(r1) - 1
-                else 1 - sqrt(2 - r1)
-                val r2 = 2 * rnd.nextDouble
-                val dy = if (r2 < 1) sqrt(r2) - 1
-                else 1 - sqrt(2 - r2)
-                val d = cx.mul(((sx + .5 + dx) / 2 + x) / w - .5).add(cy.mul(((sy + .5 + dy) / 2 + y) / h - .5)).add(cam.dist)
-                r = r.add(radiance(Ray(cam.obj.add(d.mul(140)), d.normalize), 0))
-                // Camera rays are pushed ^^^^^ forward to start in interior
-                s += 1
-              }
-              r = r.mul(1.0 / samps)
-              c(i) = c(i).add(Vec(clamp(r.x), clamp(r.y), clamp(r.z)).mul(.25))
-              sx += 1
+          for(sy <- 0 until 2; sx <- 0 until 2) {
+            var r = Vec()
+            var s = 0
+            while (s < samples) {
+              val r1 = 2 * rnd.nextDouble
+              val dx = if (r1 < 1) sqrt(r1) - 1 else 1 - sqrt(2 - r1)
+              val r2 = 2 * rnd.nextDouble
+              val dy = if (r2 < 1) sqrt(r2) - 1 else 1 - sqrt(2 - r2)
+              val d = cx.mul(
+                ((sx + .5 + dx) / 2 + x) / w - .5
+              ).add(
+                cy * (((sy + .5 + dy) / 2 + y) / h - 0.5)
+              ).add(
+                cam.dist
+              )
+              r += radiance(Ray(cam.obj.add(d.mul(140)), d.normalize), 0)
+              s += 1
             }
-            sy += 1
+            r = r * (1.0 / samples)
+            c(i) += Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * 0.25
           }
-          x += 1
         }
       }
-
-      foo(y)
+      render(y)
     }
-    val imagesource = new Array[Int](w * h)
-    var i = 0
-    while (i < w * h) {
-      imagesource(i) = 255 << 24 | toInt(c(i).x) << 16 | toInt(c(i).y) << 8 | toInt(c(i).z)
-
-      i += 1
+    val source = new Array[Int](w * h)
+    for(i <- 0 until w * h) {
+      source(i) = 255 << 24 | toInt(c(i).x) << 16 | toInt(c(i).y) << 8 | toInt(c(i).z)
     }
-    val image = Toolkit.getDefaultToolkit.createImage(new MemoryImageSource(w, h, imagesource, 0, w))
+    val image = Toolkit.getDefaultToolkit.createImage(new MemoryImageSource(w, h, source, 0, w))
     val out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
     out.createGraphics.drawImage(image, 0, 0, null)
     ImageIO.write(out, "png", f)
