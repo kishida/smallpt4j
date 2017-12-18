@@ -26,52 +26,63 @@ import java.util.stream.IntStream;
 
 import javax.imageio.ImageIO;
 
+import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
+
 public class SmallPT {
 
     static class Vec {        // Usage: time ./smallpt 5000  xv image.ppm
 
-        double x, y, z;                  // position, also color (r,g,b)
-
+        //double x, y, z;                  // position, also color (r,g,b)
+        INDArray data;
+        private Vec(INDArray data) {
+            this.data = data;
+        }
         public Vec(double x, double y, double z) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
+            this(Nd4j.create(new double[]{x, y, z}));
         }
 
         Vec() {
             this(0, 0, 0);
         }
 
+        double getX() {
+            return data.getDouble(0);
+        }
+        double getY() {
+            return data.getDouble(1);
+        }
+        double getZ() {
+            return data.getDouble(2);
+        }
+
         Vec add(Vec b) {
-            return new Vec(x + b.x, y + b.y, z + b.z);
+            return new Vec(data.add(b.data));
         }
 
         Vec sub(Vec b) {
-            return new Vec(x - b.x, y - b.y, z - b.z);
+            return new Vec(data.sub(b.data));
         }
 
         Vec mul(double b) {
-            return new Vec(x * b, y * b, z * b);
+            return new Vec(data.mul(b));
         }
 
         Vec vecmul(Vec b) {
-            return new Vec(x * b.x, y * b.y, z * b.z);
+            return new Vec(data.mul(b.data));
         }
 
         Vec normalize() {
-            double dist = Math.sqrt(x * x + y * y + z * z);
-            x /= dist;
-            y /= dist;
-            z /= dist;
+            data.divi(data.distance2(data));
             return this;
         }
 
         double dot(Vec b) {
-            return x * b.x + y * b.y + z * b.z;
+            return (double) data.add(b.data).sumNumber();
         } // cross:
 
         Vec mod(Vec b) {
-            return new Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
+            return new Vec(data.remainder(b.data));
         }
     }
 
@@ -249,7 +260,7 @@ public class SmallPT {
                             r = r.add(radiance(new Ray(cam.obj.add(d.mul(140)), d.normalize()), 0));
                         } // Camera rays are pushed ^^^^^ forward to start in interior
                         r = r.mul(1. / samps);
-                        c[i] = c[i].add(new Vec(clamp(r.x), clamp(r.y), clamp(r.z)).mul(.25));
+                        c[i] = c[i].add(new Vec(clamp(r.getX()), clamp(r.getY()), clamp(r.getZ())).mul(.25));
                     }
                 }
             }
@@ -262,7 +273,7 @@ public class SmallPT {
                 Duration.between(start, finish));
         int[] imagesource = new int[w * h];
         for (int i = 0; i < w * h; ++i) {
-            imagesource[i] = 255 << 24 | toInt(c[i].x) << 16 | toInt(c[i].y) << 8 | toInt(c[i].z);
+            imagesource[i] = 255 << 24 | toInt(c[i].getX()) << 16 | toInt(c[i].getY()) << 8 | toInt(c[i].getZ());
         }
         BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         out.setRGB(0, 0, w, h, imagesource, 0, w);
