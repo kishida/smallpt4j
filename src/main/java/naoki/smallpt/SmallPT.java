@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
@@ -150,8 +150,10 @@ public class SmallPT {
         return t[0] < INF;
     }
 
-    static Random rnd = new Random(123);
-
+    private static double getRandom() {
+        return ThreadLocalRandom.current().nextDouble();
+    }
+    
     static Vec radiance(Ray r, int depth) {
         double[] t = {0};                               // distance to intersection
         int[] id = {0};                               // id of intersected object
@@ -167,7 +169,7 @@ public class SmallPT {
         double p = Math.max(f.x, Math.max(f.y, f.z)); // max refl
         depth++;
         if (depth > 5) {
-            if (depth < 50 && rnd.nextDouble() < p) {// 最大反射回数を設定
+            if (depth < 50 && getRandom() < p) {// 最大反射回数を設定
                 f = f.mul(1 / p);
             } else {
                 return obj.emission; //R.R.
@@ -177,8 +179,8 @@ public class SmallPT {
             throw new IllegalStateException();
         } else switch (obj.reflection) {
             case DIFFUSE:
-                double r1 = 2 * Math.PI * rnd.nextDouble(),
-                        r2 = rnd.nextDouble(),
+                double r1 = 2 * Math.PI * getRandom(),
+                        r2 = getRandom(),
                         r2s = sqrt(r2);
                 Vec w = nl,
                         u = ((Math.abs(w.x) > .1 ? new Vec(0, 1, 0) : new Vec(1, 0, 0)).mod(w)).normalize(),
@@ -209,7 +211,7 @@ public class SmallPT {
                         probability = .25 + .5 * Re,
                         RP = Re / probability,
                         TP = Tr / (1 - probability);
-                return obj.emission.add(f.vecmul(depth > 2 ? (rnd.nextDouble() < probability // Russian roulette
+                return obj.emission.add(f.vecmul(depth > 2 ? (getRandom() < probability // Russian roulette
                         ? radiance(reflectionRay, depth).mul(RP) : radiance(new Ray(x, tdir), depth).mul(TP))
                         : radiance(reflectionRay, depth).mul(Re).add(radiance(new Ray(x, tdir), depth).mul(Tr))));
             default:
@@ -240,9 +242,9 @@ public class SmallPT {
                     for (int sx = 0; sx < 2; sx++) {        // 2x2 subpixel cols
                         Vec r = new Vec();
                         for (int s = 0; s < samps; s++) {
-                            double r1 = 2 * rnd.nextDouble(),
+                            double r1 = 2 * getRandom(),
                                     dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
-                            double r2 = 2 * rnd.nextDouble(),
+                            double r2 = 2 * getRandom(),
                                     dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
                             Vec d = cx.mul(((sx + .5 + dx) / 2 + x) / w - .5)
                                     .add(cy.mul(((sy + .5 + dy) / 2 + y) / h - .5)).add(cam.dist);
