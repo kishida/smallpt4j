@@ -28,6 +28,8 @@ import javax.imageio.ImageIO;
 
 public class SmallPT {
 
+    private static final int SAMPLES_DEFAULT = 40;
+
     static class Vec {        // Usage: time ./smallpt 5000  xv image.ppm
 
         double x, y, z;                  // position, also color (r,g,b)
@@ -222,7 +224,7 @@ public class SmallPT {
     public static void main(String... argv) throws IOException {
         int w = 1024,
                 h = 768,
-                samps = argv.length == 2 ? Integer.parseInt(argv[1]) / 4 : 2; // # samples
+                samps = (argv.length == 2 ? Integer.parseInt(argv[1]) : SAMPLES_DEFAULT )/ 4; // # samples
 
         Ray cam = new Ray(new Vec(50, 52, 295.6), new Vec(0, -0.042612, -1).normalize()); // cam pos, dir
         Vec cx = new Vec(w * .5135 / h, 0, 0),
