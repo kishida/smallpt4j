@@ -6,6 +6,14 @@ This software is released under the MIT License.
 This is based on the smallpt( http://www.kevinbeason.com/smallpt/ )
 that is released under the MIT License.
 ( https://github.com/kishida/smallpt4j/blob/master/smallpt_LICENSE.txt )
+
+using jdk-10-mvtea+0 on 12-11-2017 ( http://jdk.java.net/valhalla/ )
+compile:
+> javac naoki/smallpt/module-info.java naoki/smallpt/SmallPT.java
+
+execution:
+> java -XX:+EnableMVT --add-modules jdk.incubator.mvt,java.desktop naoki.smallpt.SmallPT
+
 */
 
 package naoki.smallpt;
@@ -30,9 +38,10 @@ public class SmallPT {
 
     private static final int SAMPLES_DEFAULT = 40;
 
-    static class Vec {        // Usage: time ./smallpt 5000  xv image.ppm
+    @jdk.incubator.mvt.ValueCapableClass
+    static final class Vec {        // Usage: time ./smallpt 5000  xv image.ppm
 
-        double x, y, z;                  // position, also color (r,g,b)
+        final double x, y, z;                  // position, also color (r,g,b)
 
         public Vec(double x, double y, double z) {
             this.x = x;
@@ -62,10 +71,7 @@ public class SmallPT {
 
         Vec normalize() {
             double dist = Math.sqrt(x * x + y * y + z * z);
-            x /= dist;
-            y /= dist;
-            z /= dist;
-            return this;
+            return new Vec(x / dist, y / dist, z / dist);
         }
 
         double dot(Vec b) {
@@ -77,9 +83,10 @@ public class SmallPT {
         }
     }
 
-    static class Ray {
+    //@jdk.incubator.mvt.ValueCapableClass
+    static final class Ray {
 
-        Vec obj, dist;
+        final Vec obj, dist;
 
         public Ray(Vec o, Vec d) {
             this.obj = o;
@@ -92,11 +99,12 @@ public class SmallPT {
         DIFFUSE, SPECULAR, REFRECTION
     };  // material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()
 
-    static class Sphere {
+    //@jdk.incubator.mvt.ValueCapableClass
+    static final class Sphere {
 
-        double rad;       // radius
-        Vec pos, emission, color;      // position, emission, color
-        Reflection reflection;      // reflection type (DIFFuse, SPECular, REFRactive)
+        final double rad;       // radius
+        final Vec pos, emission, color;      // position, emission, color
+        final Reflection reflection;      // reflection type (DIFFuse, SPECular, REFRactive)
 
         public Sphere(double rad, Vec p, Vec e, Vec c, Reflection refl) {
             this.rad = rad;
