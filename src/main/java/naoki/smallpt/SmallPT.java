@@ -30,7 +30,7 @@ public class SmallPT {
 
     private static final int SAMPLES_DEFAULT = 40;
 
-    static class Vec {        // Usage: time ./smallpt 5000  xv image.ppm
+    static final class Vec {        // Usage: time ./smallpt 5000  xv image.ppm
 
         double x, y, z;                  // position, also color (r,g,b)
 
@@ -77,9 +77,9 @@ public class SmallPT {
         }
     }
 
-    static class Ray {
+    static final class Ray {
 
-        Vec obj, dist;
+        final Vec obj, dist;
 
         public Ray(Vec o, Vec d) {
             this.obj = o;
@@ -92,11 +92,11 @@ public class SmallPT {
         DIFFUSE, SPECULAR, REFRECTION
     };  // material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()
 
-    static class Sphere {
+    static final class Sphere {
 
-        double rad;       // radius
-        Vec pos, emission, color;      // position, emission, color
-        Reflection reflection;      // reflection type (DIFFuse, SPECular, REFRactive)
+        final double rad;       // radius
+        final Vec pos, emission, color;      // position, emission, color
+        final Reflection reflection;      // reflection type (DIFFuse, SPECular, REFRactive)
 
         public Sphere(double rad, Vec p, Vec e, Vec c, Reflection refl) {
             this.rad = rad;
@@ -120,7 +120,7 @@ public class SmallPT {
             return (t = b - det) > eps ? t : ((t = b + det) > eps ? t : 0);
         }
     };
-    static Sphere spheres[] = {//Scene: radius, position, emission, color, material
+    static final Sphere spheres[] = {//Scene: radius, position, emission, color, material
         new Sphere(1e5,  new Vec(1e5 + 1, 40.8, 81.6),   new Vec(), new Vec(.75, .25, .25), Reflection.DIFFUSE),//Left
         new Sphere(1e5,  new Vec(-1e5 + 99, 40.8, 81.6), new Vec(), new Vec(.25, .25, .75), Reflection.DIFFUSE),//Rght
         new Sphere(1e5,  new Vec(50, 40.8, 1e5),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Back
