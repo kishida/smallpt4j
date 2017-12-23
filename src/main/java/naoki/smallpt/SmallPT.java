@@ -140,6 +140,8 @@ public class SmallPT {
         return Math.min(255, (int) (Math.pow(clamp(x), 1 / 2.2) * 255 + .5));
     }
     private static final double INF = 1e20;
+    private static final Vec UNIT_X = new Vec(1, 0, 0);
+    private static final Vec UNIT_Y = new Vec(0, 1, 0);
     static boolean intersect(Ray r, double[] t, int[] id) {
         t[0] = INF;
         for (int i = 0; i < spheres.length; ++i) {
@@ -185,7 +187,7 @@ public class SmallPT {
                         r2 = getRandom(),
                         r2s = sqrt(r2);
                 Vec w = nl,
-                        u = ((Math.abs(w.x) > .1 ? new Vec(0, 1, 0) : new Vec(1, 0, 0)).mod(w)).normalize(),
+                        u = ((Math.abs(w.x) > .1 ? UNIT_Y : UNIT_X).mod(w)).normalize(),
                         v = w.mod(u);
                 Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
                 return obj.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
