@@ -10,9 +10,13 @@ that is released under the MIT License.
 
 package naoki.smallpt;
 
-import static java.lang.Math.cos;
-import static java.lang.Math.sin;
-import static java.lang.Math.sqrt;
+import static org.apache.commons.math3.util.FastMath.abs;
+import static org.apache.commons.math3.util.FastMath.cos;
+import static org.apache.commons.math3.util.FastMath.max;
+import static org.apache.commons.math3.util.FastMath.min;
+import static org.apache.commons.math3.util.FastMath.pow;
+import static org.apache.commons.math3.util.FastMath.sin;
+import static org.apache.commons.math3.util.FastMath.sqrt;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -61,7 +65,7 @@ public class SmallPT {
         }
 
         Vec normalize() {
-            double dist = Math.sqrt(x * x + y * y + z * z);
+            double dist = sqrt(x * x + y * y + z * z);
             x /= dist;
             y /= dist;
             z /= dist;
@@ -115,7 +119,7 @@ public class SmallPT {
             if (det < 0) {
                 return 0;
             } else {
-                det = Math.sqrt(det);
+                det = sqrt(det);
             }
             return (t = b - det) > eps ? t : ((t = b + det) > eps ? t : 0);
         }
@@ -137,7 +141,7 @@ public class SmallPT {
     }
 
     static int toInt(double x) {
-        return Math.min(255, (int) (Math.pow(clamp(x), 1 / 2.2) * 255 + .5));
+        return min(255, (int) (pow(clamp(x), 1 / 2.2) * 255 + .5));
     }
     private static final double INF = 1e20;
     private static final Vec UNIT_X = new Vec(1, 0, 0);
@@ -170,7 +174,7 @@ public class SmallPT {
         Vec n = x.sub(obj.pos).normalize();
         Vec nl = n.dot(r.dist) < 0 ? n : n.mul(-1);
         Vec f = obj.color;
-        double p = Math.max(f.x, Math.max(f.y, f.z)); // max refl
+        double p = max(f.x, max(f.y, f.z)); // max refl
         depth++;
         if (depth > 5) {
             if (depth < 50 && getRandom() < p) {// 最大反射回数を設定
@@ -187,7 +191,7 @@ public class SmallPT {
                         r2 = getRandom(),
                         r2s = sqrt(r2);
                 Vec w = nl,
-                        u = ((Math.abs(w.x) > .1 ? UNIT_Y : UNIT_X).mod(w)).normalize(),
+                        u = ((abs(w.x) > .1 ? UNIT_Y : UNIT_X).mod(w)).normalize(),
                         v = w.mod(u);
                 Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
                 return obj.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
