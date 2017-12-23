@@ -10,8 +10,12 @@ that is released under the MIT License.
 
 package naoki.smallpt;
 
+import static naoki.smallpt.SmallPT.Reflection.DIFFUSE;
 import static org.apache.commons.math3.util.FastMath.abs;
+import static org.apache.commons.math3.util.FastMath.asin;
+import static org.apache.commons.math3.util.FastMath.atan2;
 import static org.apache.commons.math3.util.FastMath.cos;
+import static org.apache.commons.math3.util.FastMath.floor;
 import static org.apache.commons.math3.util.FastMath.max;
 import static org.apache.commons.math3.util.FastMath.min;
 import static org.apache.commons.math3.util.FastMath.pow;
@@ -21,6 +25,7 @@ import static org.apache.commons.math3.util.FastMath.sqrt;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -90,50 +95,238 @@ public class SmallPT {
             this.dist = d;
         }
 
-    };
+    }
 
-    private static enum Reflection {
+    static enum Reflection {
         DIFFUSE, SPECULAR, REFRECTION
-    };  // material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()
+    }  // material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()
 
-    static final class Sphere {
+    static abstract class Surface {
+        final Vec pos;
+        final Texture texture;
 
-        final double rad;       // radius
-        final Vec pos, emission, color;      // position, emission, color
-        final Reflection reflection;      // reflection type (DIFFuse, SPECular, REFRactive)
-
-        public Sphere(double rad, Vec p, Vec e, Vec c, Reflection refl) {
-            this.rad = rad;
-            this.pos = p;
-            this.emission = e;
-            this.color = c;
-            this.reflection = refl;
+        public Surface(Vec pos, Texture texture) {
+            this.pos = pos;
+            this.texture = texture;
         }
 
+        public Surface(Vec pos, Vec emission, Vec color, Reflection reflection) {
+            this(pos, new SolidTexture(emission, color, reflection));
+        }
+        
+        abstract double intersect(Ray y);
+        abstract void position(Vec p, Ray r, Vec[] n, Col[] c);
+        abstract Point makeXY(Vec p);
+    }
+    
+    private static final double EPS = 1e-4;
+    
+    static final class Sphere extends Surface {
+
+        final double rad;       // radius
+
+        public Sphere(double rad, Vec p, Vec e, Vec c, Reflection refl) {
+            super(p, e, c, refl);
+            this.rad = rad;
+        }
+        public Sphere(double rad, Vec p, Texture texture) {
+            super(p, texture);
+            this.rad = rad;
+        }
+
+        @Override
         double intersect(Ray r) { // returns distance, 0 if nohit
             Vec op = pos.sub(r.obj); // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
             double t,
-                    eps = 1e-4,
                     b = op.dot(r.dist),
                     det = b * b - op.dot(op) + rad * rad;
             if (det < 0) {
                 return 0;
-            } else {
-                det = sqrt(det);
             }
-            return (t = b - det) > eps ? t : ((t = b + det) > eps ? t : 0);
+            det = sqrt(det);
+            return (t = b - det) > EPS ? t : ((t = b + det) > EPS ? t : 0);
         }
-    };
-    static final Sphere spheres[] = {//Scene: radius, position, emission, color, material
+        
+        @Override
+        void position(Vec x, Ray r, Vec[] n, Col[] c) {
+            n[0] = x.sub(pos).normalize();
+            c[0] = texture.getCol(this, x);
+        }
+
+        @Override
+        Point makeXY(Vec x) {
+            Vec position = x.sub(pos).mul(1 / rad);
+            double phi = atan2(position.z, position.x);
+            double theta = asin(position.y);
+            return new Point(1 - (phi + Math.PI) / (2 * Math.PI), (theta + Math.PI / 2) / Math.PI);
+        }
+        
+    }
+    
+    static final class Plane extends Surface {
+        final double width, height;
+        public Plane(double x, double y, Vec pos, Vec emission, Vec color, Reflection reflection) {
+            super(pos, emission, color, reflection);
+            this.width = x;
+            this.height = y;
+        }
+        public Plane(double x, double y, Vec pos, Texture tex) {
+            super(pos, tex);
+            this.width = x;
+            this.height = y;
+        }
+        @Override
+        double intersect(Ray ray) {
+            if (ray.dist.z < EPS && ray.dist.z > -EPS) {
+                return 0;
+            }
+            double d = (pos.z - ray.obj.z) / ray.dist.z;
+            if (d < 0) {
+                return 0;
+            }
+            Vec x = ray.obj.add(ray.dist.mul(d));
+            Vec p = x.sub(pos);
+            if (p.x < 0 || p.x > width || p.y < 0 || p.y > height) {
+                return 0;
+            }
+            if (!texture.isHit(this, x)) {
+                return 0;
+            }
+            return d;
+        }
+
+        @Override
+        void position(Vec p, Ray r, Vec[] n, Col[] c) {
+            n[0] = new Vec(0, 0, r.dist.z > 0 ? -1 : 1);
+            c[0] =  texture.getCol(this, p);
+        }
+        
+        @Override
+        Point makeXY(Vec p) {
+            return new Point((p.x - pos.x) / width, (p.y - pos.y) / height);
+        }
+    }
+    static final class Point {
+        final double x, y;
+
+        public Point(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+    static final class Col {
+        final Vec emission, color;
+        final Reflection reflection;
+
+        public Col(Vec emission, Vec color,Reflection reflection) {
+            this.emission = emission;
+            this.color = color;
+            this.reflection= reflection;
+        }
+    }
+    static abstract class Texture {
+        abstract Col getCol(Surface s, Vec x);
+        boolean isHit(Surface s, Vec x)  {
+            return true;
+        }
+    }
+    static class SolidTexture extends Texture {
+        final Col col;
+
+        public SolidTexture(Vec emission, Vec color, Reflection ref) {
+            this.col = new Col(emission, color, ref);
+        }
+        @Override
+        Col getCol(Surface s, Vec x) {
+            return col;
+        }
+    }
+    static class CheckTexture extends Texture {
+        final Col col1, col2;
+        final double freq;
+
+        public CheckTexture(Vec col1, Vec col2, double freq) {
+            this.col1 = new Col(new Vec(), col1, DIFFUSE);
+            this.col2 = new Col(new Vec(), col2, DIFFUSE);
+            this.freq = freq;
+        }
+
+        @Override
+        Col getCol(Surface s, Vec x) {
+            Point p = s.makeXY(x);
+            return (under(p.x / freq) - 0.5) * (under(p.y / freq) - 0.5) > 0 ? col1 : col2;
+        }
+        private double under(double d) {
+            return d - floor(d);
+        }
+    }
+    
+    static class BitmapTexture extends Texture {
+        final BufferedImage img;
+        final int width, height;
+        final Vec emission = new Vec();
+
+        public BitmapTexture(String file) {
+            try {
+                img = ImageIO.read(SmallPT.class.getResourceAsStream(file));
+                width = img.getWidth(null);
+                height = img.getHeight(null);
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+        }
+        
+        @Override
+        Col getCol(Surface s, Vec x) {
+            int rgb = getRgb(s, x);
+            return new Col(emission, new Vec((rgb >> 16 & 255) / 255., (rgb >> 8 & 255) / 255., (rgb & 255) / 255.), DIFFUSE);
+        }
+
+        @Override
+        boolean isHit(Surface s, Vec x) {
+            int rgb = getRgb(s, x);
+            return rgb >> 24 != 0;
+        }
+        
+        int getRgb(Surface s, Vec x) {
+            Point pos = s.makeXY(x);
+            return img.getRGB((int)(pos.x * width), (int)((1 - pos.y) * height));
+        }
+    }
+    
+    static class EmissionTexture extends BitmapTexture {
+        final Vec emission = new Vec(12, 12, 12);
+        final Vec color = new Vec();
+        public EmissionTexture(String file) {
+            super(file);
+        }
+
+        @Override
+        Col getCol(Surface s, Vec x) {
+            return new Col(emission, color, DIFFUSE);
+        }
+
+        @Override
+        boolean isHit(Surface s, Vec x) {
+            int rgb = getRgb(s, x);
+            return (rgb >> 24 != 0) && (rgb >> 16 & 255) < 80;
+        }
+        
+    }
+    
+    static final Surface spheres[] = {//Scene: radius, position, emission, color, material
         new Sphere(1e5,  new Vec(1e5 + 1, 40.8, 81.6),   new Vec(), new Vec(.75, .25, .25), Reflection.DIFFUSE),//Left
         new Sphere(1e5,  new Vec(-1e5 + 99, 40.8, 81.6), new Vec(), new Vec(.25, .25, .75), Reflection.DIFFUSE),//Rght
         new Sphere(1e5,  new Vec(50, 40.8, 1e5),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Back
         new Sphere(1e5,  new Vec(50, 40.8, -1e5 + 170),  new Vec(), new Vec(), Reflection.DIFFUSE),//Frnt
         new Sphere(1e5,  new Vec(50, 1e5, 81.6),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Botm
         new Sphere(1e5,  new Vec(50, -1e5 + 81.6, 81.6), new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Top
-        new Sphere(16.5, new Vec(27, 16.5, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
-        new Sphere(16.5, new Vec(73, 16.5, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
-        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(12, 12, 12), new Vec(), Reflection.DIFFUSE) //Lite
+        new Sphere(13, new Vec(27, 13, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
+        new Sphere(10, new Vec(73, 10, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
+        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(1, 1, 1), new Vec(), Reflection.DIFFUSE), //Lite
+        new Plane(40, 30, new Vec(30, 0, 60), new BitmapTexture("/duke600px.png")),
+        new Sphere(10, new Vec(17, 10, 85), new CheckTexture(new Vec(.25, .75, .25), new Vec(.95, .95, .95), .3)),
+        new Plane(32, 24, new Vec(45, 0, 90), new EmissionTexture("/duke600px.png"))
     };
 
     static double clamp(double x) {
@@ -146,13 +339,14 @@ public class SmallPT {
     private static final double INF = 1e20;
     private static final Vec UNIT_X = new Vec(1, 0, 0);
     private static final Vec UNIT_Y = new Vec(0, 1, 0);
-    static boolean intersect(Ray r, double[] t, int[] id) {
+    static boolean intersect(Ray r, double[] t, Surface[] robj) {
         t[0] = INF;
         for (int i = 0; i < spheres.length; ++i) {
-            double d = spheres[i].intersect(r);
+            Surface obj = spheres[i];
+            double d = obj.intersect(r);
             if (d != 0 && (d < t[0])) {
                 t[0] = d;
-                id[0] = i;
+                robj[0] = obj;
             }
         }
         return t[0] < INF;
@@ -165,27 +359,32 @@ public class SmallPT {
     static Vec radiance(Ray r, int depth) {
         double[] t = {0};                               // distance to intersection
         int[] id = {0};                               // id of intersected object
-        if (!intersect(r, t, id)) {
+        Surface[] robj = {null};
+        Vec[] rn = {null};
+        Col[] rc = {null};
+        if (!intersect(r, t, robj)) {
             return new Vec(); // if miss, return black
         }
-        Sphere obj = spheres[id[0]];        // the hit object
+        Surface obj = robj[0];        // the hit object
         Vec x = r.obj.add(r.dist.mul(t[0]));
 
-        Vec n = x.sub(obj.pos).normalize();
+        obj.position(x, r, rn, rc);
+        Col tex = rc[0];
+        Vec n = rn[0];
         Vec nl = n.dot(r.dist) < 0 ? n : n.mul(-1);
-        Vec f = obj.color;
+        Vec f = tex.color;
         double p = max(f.x, max(f.y, f.z)); // max refl
         depth++;
         if (depth > 5) {
             if (depth < 50 && getRandom() < p) {// 最大反射回数を設定
                 f = f.mul(1 / p);
             } else {
-                return obj.emission; //R.R.
+                return tex.emission; //R.R.
             }
         }
-        if (null == obj.reflection) {
+        if (null == tex.reflection) {
             throw new IllegalStateException();
-        } else switch (obj.reflection) {
+        } else switch(tex.reflection) {
             case DIFFUSE:
                 double r1 = 2 * Math.PI * getRandom(),
                         r2 = getRandom(),
@@ -194,10 +393,10 @@ public class SmallPT {
                         u = ((abs(w.x) > .1 ? UNIT_Y : UNIT_X).mod(w)).normalize(),
                         v = w.mod(u);
                 Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
-                return obj.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
+                return tex.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
             case SPECULAR:
                 // Ideal SPECULAR reflection
-                return obj.emission.add(f.vecmul(radiance(new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)));
+                return tex.emission.add(f.vecmul(radiance(new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)));
             case REFRECTION:
                 Ray reflectionRay = new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist))));     // Ideal dielectric REFRACTION
                 boolean into = n.dot(nl) > 0;                // Ray from outside going in?
@@ -207,7 +406,7 @@ public class SmallPT {
                         ddn = r.dist.dot(nl),
                         cos2t = 1 - nnt * nnt * (1 - ddn * ddn);
                 if (cos2t < 0) { // Total internal reflection
-                    return obj.emission.add(f.vecmul(radiance(reflectionRay, depth)));
+                    return tex.emission.add(f.vecmul(radiance(reflectionRay, depth)));
                 }
                 Vec tdir = (r.dist.mul(nnt).sub(n.mul((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t))))).normalize();
                 double a = nt - nc,
@@ -219,7 +418,7 @@ public class SmallPT {
                         probability = .25 + .5 * Re,
                         RP = Re / probability,
                         TP = Tr / (1 - probability);
-                return obj.emission.add(f.vecmul(depth > 2 ? (getRandom() < probability // Russian roulette
+                return tex.emission.add(f.vecmul(depth > 2 ? (getRandom() < probability // Russian roulette
                         ? radiance(reflectionRay, depth).mul(RP) : radiance(new Ray(x, tdir), depth).mul(TP))
                         : radiance(reflectionRay, depth).mul(Re).add(radiance(new Ray(x, tdir), depth).mul(Tr))));
             default:
@@ -230,7 +429,7 @@ public class SmallPT {
     public static void main(String... argv) throws IOException {
         int w = 1024,
                 h = 768,
-                samps = (argv.length == 2 ? Integer.parseInt(argv[1]) : SAMPLES_DEFAULT )/ 4; // # samples
+                samps = (argv.length > 0 ? Integer.parseInt(argv[0]) : SAMPLES_DEFAULT )/ 4; // # samples
 
         Ray cam = new Ray(new Vec(50, 52, 295.6), new Vec(0, -0.042612, -1).normalize()); // cam pos, dir
         Vec cx = new Vec(w * .5135 / h, 0, 0),

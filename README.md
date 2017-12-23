@@ -3,11 +3,11 @@
 Transport of smallpt for Java
 http://www.kevinbeason.com/smallpt/
 
-samples=25000
+<img src="results/image_duke5000.png" width="320px" alt="duke 5000">
 
-<img src="image_4000.png" width="320px" alt="samples=25000">
+Original transport is in `original` branch (https://github.com/kishida/smallpt4j/tree/original )
 
-|                 |![SPP 8](image_8.png)|![SPP40](image_40.png)|![SPP200](image_200.png)|![SPP1000](image_1000.png)|![SPP5000](image_5000.png)|![SPP25000](image_25000.png)|
+|                 |![SPP 8](results/image_8.png)|![SPP40](results/image_40.png)|![SPP200](results/image_200.png)|![SPP1000](results/image_1000.png)|![SPP5000](results/image_5000.png)|![SPP25000](results/image_25000.png)|
 |:---|:---|:---|:---|:---|:---|:---|
 |                 |SPP 8                |SPP 40                |SPP 200                 |SPP 1000                  |SPP 5000                  |SPP 25000                   |
 |i7 7820X/8thrs   |3 sec                |7 sec                 |27 sec                  |130 sec                   |10 min                    |55 min                      |
