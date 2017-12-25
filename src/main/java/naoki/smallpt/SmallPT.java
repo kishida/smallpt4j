@@ -39,7 +39,15 @@ public class SmallPT {
 
     private static final int SAMPLES_DEFAULT = 40;
 
+    private static final double GAMMA = 2.2;
+    private static final double RECIP_GAMMA = 1 / GAMMA;
+    private static final double EPS = 1e-4;
+    private static final double INF = 1e20;
+
     static final class Vec {        // Usage: time ./smallpt 5000  xv image.ppm
+        static final Vec UNIT_X = new Vec(1, 0, 0);
+        static final Vec UNIT_Y = new Vec(0, 1, 0);
+        static final Vec ZERO = new Vec();
 
         double x, y, z;                  // position, also color (r,g,b)
 
@@ -99,7 +107,7 @@ public class SmallPT {
 
     static enum Reflection {
         DIFFUSE, SPECULAR, REFRECTION
-    }  // material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()
+    }  // material types, used in radiance()
 
     static abstract class Surface {
         final Vec pos;
@@ -118,8 +126,6 @@ public class SmallPT {
         abstract void position(Vec p, Ray r, Vec[] n, Col[] c);
         abstract Point makeXY(Vec p);
     }
-    
-    private static final double EPS = 1e-4;
     
     static final class Sphere extends Surface {
 
@@ -195,9 +201,12 @@ public class SmallPT {
             return d;
         }
 
+        static final Vec TO_FRONT = new Vec(0, 0, 1);
+        static final Vec TO_BACK = new Vec(0, 0, -1);
+        
         @Override
         void position(Vec p, Ray r, Vec[] n, Col[] c) {
-            n[0] = new Vec(0, 0, r.dist.z > 0 ? -1 : 1);
+            n[0] =r.dist.z > 0 ? TO_BACK : TO_FRONT;
             c[0] =  texture.getCol(this, p);
         }
         
@@ -246,8 +255,8 @@ public class SmallPT {
         final double freq;
 
         public CheckTexture(Vec col1, Vec col2, double freq) {
-            this.col1 = new Col(new Vec(), col1, DIFFUSE);
-            this.col2 = new Col(new Vec(), col2, DIFFUSE);
+            this.col1 = new Col(Vec.ZERO, col1, DIFFUSE);
+            this.col2 = new Col(Vec.ZERO, col2, DIFFUSE);
             this.freq = freq;
         }
 
@@ -264,7 +273,7 @@ public class SmallPT {
     static class BitmapTexture extends Texture {
         final BufferedImage img;
         final int width, height;
-        final Vec emission = new Vec();
+        final Vec emission = Vec.ZERO;
 
         public BitmapTexture(String file) {
             try {
@@ -279,7 +288,11 @@ public class SmallPT {
         @Override
         Col getCol(Surface s, Vec x) {
             int rgb = getRgb(s, x);
-            return new Col(emission, new Vec((rgb >> 16 & 255) / 255., (rgb >> 8 & 255) / 255., (rgb & 255) / 255.), DIFFUSE);
+            return new Col(emission, new Vec(intToDouble(rgb >> 16), intToDouble(rgb >> 8), intToDouble(rgb)), DIFFUSE);
+        }
+        
+        private double intToDouble(int c) {
+            return pow((c & 255) / 255., GAMMA);
         }
 
         @Override
@@ -288,7 +301,7 @@ public class SmallPT {
             return rgb >> 24 != 0;
         }
         
-        int getRgb(Surface s, Vec x) {
+        protected int getRgb(Surface s, Vec x) {
             Point pos = s.makeXY(x);
             return img.getRGB((int)(pos.x * width), (int)((1 - pos.y) * height));
         }
@@ -296,7 +309,7 @@ public class SmallPT {
     
     static class EmissionTexture extends BitmapTexture {
         final Vec emission = new Vec(12, 12, 12);
-        final Vec color = new Vec();
+        final Vec color = Vec.ZERO;
         public EmissionTexture(String file) {
             super(file);
         }
@@ -334,11 +347,9 @@ public class SmallPT {
     }
 
     static int toInt(double x) {
-        return min(255, (int) (pow(clamp(x), 1 / 2.2) * 255 + .5));
+        return min(255, (int) (pow(clamp(x), RECIP_GAMMA) * 255 + .5));
     }
-    private static final double INF = 1e20;
-    private static final Vec UNIT_X = new Vec(1, 0, 0);
-    private static final Vec UNIT_Y = new Vec(0, 1, 0);
+
     static boolean intersect(Ray r, double[] t, Surface[] robj) {
         t[0] = INF;
         for (int i = 0; i < spheres.length; ++i) {
@@ -358,12 +369,11 @@ public class SmallPT {
     
     static Vec radiance(Ray r, int depth) {
         double[] t = {0};                               // distance to intersection
-        int[] id = {0};                               // id of intersected object
         Surface[] robj = {null};
         Vec[] rn = {null};
         Col[] rc = {null};
         if (!intersect(r, t, robj)) {
-            return new Vec(); // if miss, return black
+            return Vec.ZERO; // if miss, return black
         }
         Surface obj = robj[0];        // the hit object
         Vec x = r.obj.add(r.dist.mul(t[0]));
@@ -390,7 +400,7 @@ public class SmallPT {
                         r2 = getRandom(),
                         r2s = sqrt(r2);
                 Vec w = nl,
-                        u = ((abs(w.x) > .1 ? UNIT_Y : UNIT_X).mod(w)).normalize(),
+                        u = ((abs(w.x) > .1 ? Vec.UNIT_Y : Vec.UNIT_X).mod(w)).normalize(),
                         v = w.mod(u);
                 Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
                 return tex.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
@@ -437,17 +447,16 @@ public class SmallPT {
 
         Instant start = Instant.now();
         Vec[] c = new Vec[w * h];
-        Arrays.fill(c, new Vec());
+        Arrays.fill(c, new Vec()); // Don't use ZERO
 
         AtomicInteger count = new AtomicInteger();
         IntStream.range(0, h).parallel().forEach(y -> {
-            //for (int y = 0; y < h; ++y) {
             System.out.printf("Rendering (%d spp) %5.2f%%%n", samps * 4, 100. * count.getAndIncrement() / (h - 1));
             for (int x = 0; x < w; x++) {// Loop cols
                 int i = (h - y - 1) * w + x;
                 for (int sy = 0; sy < 2; sy++) { // 2x2 subpixel rows
                     for (int sx = 0; sx < 2; sx++) {        // 2x2 subpixel cols
-                        Vec r = new Vec();
+                        Vec r = new Vec(); // Don't use ZERO
                         for (int s = 0; s < samps; s++) {
                             double r1 = 2 * getRandom(),
                                     dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
