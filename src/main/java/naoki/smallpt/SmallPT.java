@@ -274,15 +274,23 @@ public class SmallPT {
         final BufferedImage img;
         final int width, height;
         final Vec emission = Vec.ZERO;
+        final double enhance;
+        final double offset;
 
-        public BitmapTexture(String file) {
+        public BitmapTexture(String file, double offset, double e) {
             try {
                 img = ImageIO.read(SmallPT.class.getResourceAsStream(file));
                 width = img.getWidth(null);
                 height = img.getHeight(null);
+                this.offset = offset;
+                enhance = e;
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }
+        }
+
+        public BitmapTexture(String file) {
+            this(file, 0, 1);
         }
         
         @Override
@@ -292,7 +300,7 @@ public class SmallPT {
         }
         
         private double intToDouble(int c) {
-            return pow((c & 255) / 255., GAMMA);
+            return pow((c & 255) / 255., GAMMA) * enhance;
         }
 
         @Override
@@ -303,7 +311,7 @@ public class SmallPT {
         
         protected int getRgb(Surface s, Vec x) {
             Point pos = s.makeXY(x);
-            return img.getRGB((int)(pos.x * width), (int)((1 - pos.y) * height));
+            return img.getRGB((int)((pos.x + offset) * width) % width, (int)((1 - pos.y) * height));
         }
     }
     
@@ -336,9 +344,9 @@ public class SmallPT {
         new Sphere(1e5,  new Vec(50, -1e5 + 81.6, 81.6), new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Top
         new Sphere(13, new Vec(27, 13, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
         new Sphere(10, new Vec(73, 10, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
-        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(1, 1, 1), new Vec(), Reflection.DIFFUSE), //Lite
+        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(2, 2, 2), new Vec(), Reflection.DIFFUSE), //Lite
         new Plane(40, 30, new Vec(30, 0, 60), new BitmapTexture("/duke600px.png")),
-        new Sphere(10, new Vec(17, 10, 85), new CheckTexture(new Vec(.25, .75, .25), new Vec(.95, .95, .95), .3)),
+        new Sphere(10, new Vec(17, 10, 85), new BitmapTexture("/Earth-hires.jpg", .55, 3.2)),
         new Plane(32, 24, new Vec(45, 0, 90), new EmissionTexture("/duke600px.png"))
     };
 
