@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
 
@@ -78,11 +79,17 @@ public class SmallPT {
         }
 
         Vec normalize() {
-            double dist = sqrt(x * x + y * y + z * z);
+            double dist = distant();
+            if (dist == 0) {
+                return UNIT_X;
+            }
             x /= dist;
             y /= dist;
             z /= dist;
             return this;
+        }
+        double distant() {
+            return sqrt(x * x + y * y + z * z);
         }
 
         double dot(Vec b) {
@@ -122,7 +129,7 @@ public class SmallPT {
             this(pos, new SolidTexture(emission, color, reflection));
         }
         
-        abstract double intersect(Ray y);
+        abstract double intersect(Ray y, Surface[] robj);
         abstract void position(Vec p, Ray r, Vec[] n, Col[] c);
         abstract Point makeXY(Vec p);
     }
@@ -141,7 +148,7 @@ public class SmallPT {
         }
 
         @Override
-        double intersect(Ray r) { // returns distance, 0 if nohit
+        double intersect(Ray r, Surface[] robj) { // returns distance, 0 if nohit
             Vec op = pos.sub(r.obj); // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
             double t,
                     b = op.dot(r.dist),
@@ -150,6 +157,7 @@ public class SmallPT {
                 return 0;
             }
             det = sqrt(det);
+            robj[0] = this;
             return (t = b - det) > EPS ? t : ((t = b + det) > EPS ? t : 0);
         }
         
@@ -182,7 +190,7 @@ public class SmallPT {
             this.height = y;
         }
         @Override
-        double intersect(Ray ray) {
+        double intersect(Ray ray, Surface[] robj) {
             if (ray.dist.z < EPS && ray.dist.z > -EPS) {
                 return 0;
             }
@@ -198,6 +206,7 @@ public class SmallPT {
             if (!texture.isHit(this, x)) {
                 return 0;
             }
+            robj[0] = this;
             return d;
         }
 
@@ -288,7 +297,7 @@ public class SmallPT {
                 throw new UncheckedIOException(ex);
             }
         }
-
+        
         public BitmapTexture(String file) {
             this(file, 0, 1);
         }
@@ -334,7 +343,134 @@ public class SmallPT {
         }
         
     }
-    
+
+    static class Polygon extends Surface {
+        final Vec p1, p3;
+        final Vec normal;
+        final Vec e1, e2;
+
+        public Polygon(Vec p1, Vec p2, Vec p3, Texture texture) {
+            super(p2, texture);
+            this.p1 = p1;
+            this.p3 = p3;
+            e1 = p1.sub(pos);
+            e2 = p3.sub(pos);
+            normal = e1.mod(e2).normalize();
+        }
+        private double det(Vec v1, Vec v2, Vec v3) {
+            return v1.x * v2.y * v3.z + v2.x * v3.y * v1.z + v3.x * v1.y * v2.z
+                    -v1.x * v3.y * v2.z - v2.x * v1.y * v3.z - v3.x * v2.y * v1.z;
+        }
+        @Override
+        double intersect(Ray y, Surface[] robj) {
+            Vec ray = y.dist.mul(-1);
+            double deno = det(e1, e2, ray);
+            if (deno <= 0) {
+                return 0;
+            }
+            
+            Vec d = y.obj.sub(pos);
+            double u = det(d, e2, ray) / deno;
+            if (u < 0 || u > 1) {
+                return 0;
+            }
+            double v = det(e1, d, ray) / deno;
+            if (v < 0 || u + v > 1) {
+                return 0;
+            }
+            double t = det(e1, e2, d) / deno;
+            if (t < 0) {
+                return 0;
+            }
+            robj[0] = this;
+            return t;
+        }
+
+        @Override
+        void position(Vec p, Ray r, Vec[] n, Col[] c) {
+            n[0] = normal;
+            c[0] = texture.getCol(this, p);
+        }
+
+        @Override
+        Point makeXY(Vec p) {
+            return new Point(0, 0);
+        }
+    }
+
+    static class PolygonSurface extends Surface {
+        final Vec center;
+        final double rad;
+        final Polygon[] polygons;
+        final Vec[] vertexes;
+        final Sphere bound;
+
+        public PolygonSurface(double rad, Vec pos, double[] vers, int[] surs, Texture tex) {
+            super(pos, tex);
+            Vec[] vs = IntStream.range(0, vers.length / 3)
+                    .map(i -> i * 3)
+                    .mapToObj(i -> new Vec(vers[i], 20 - vers[i + 1], vers[i + 2]))
+                    .toArray(Vec[]::new);
+
+            double minX = Double.POSITIVE_INFINITY, maxX = Double.NEGATIVE_INFINITY;
+            double minY = Double.POSITIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
+            double minZ = Double.POSITIVE_INFINITY, maxZ = Double.NEGATIVE_INFINITY;
+            for (Vec ver : vs) {
+                minX = min(minX, ver.x);
+                maxX = max(maxX, ver.x);
+                minY = min(minY, ver.y);
+                maxY = max(maxY, ver.y);
+                minZ = min(minZ, ver.z);
+                maxZ = max(maxZ, ver.z);
+            }
+            center = new Vec((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+            double r = Double.NEGATIVE_INFINITY;
+            for (Vec ver : vs) {
+                r = max(r, center.sub(ver).distant());
+            }
+            this.rad = rad;
+            double t = rad / r;
+            bound = new Sphere(rad, pos, tex);
+            vertexes = Arrays.stream(vs)
+                    .map(v -> v.sub(center).mul(t).add(pos))
+                    .toArray(Vec[]::new);
+            polygons = IntStream.range(0, surs.length / 5)
+                    .mapToObj(i -> i * 5)
+                    .flatMap(i -> Stream.of(new Polygon(vertexes[surs[i]], vertexes[surs[i + 1]], vertexes[surs[i + 2]], tex),
+                                             new Polygon(vertexes[surs[i + 2]], vertexes[surs[i + 3]], vertexes[surs[i]], tex)))
+                    .filter(p -> p.pos != p.p1 && p.p1 != p.p3 && p.p3 != p.pos)
+                    .toArray(Polygon[]::new);
+        }
+
+        @Override
+        double intersect(Ray y, Surface[] robj) {
+            double dist = bound.intersect(y, robj);
+            if (dist == 0) {
+                return 0;
+            }
+            double t = INF;
+            for (Surface obj : polygons) {
+                Surface[] cobj = {null};
+                double d = obj.intersect(y, cobj);
+                if (d != 0 && d < t) {
+                    t = d;
+                    robj[0] = obj;
+                }
+            }
+            return t;
+        }
+
+        @Override
+        void position(Vec p, Ray r, Vec[] n, Col[] c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        Point makeXY(Vec p) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     static final Surface spheres[] = {//Scene: radius, position, emission, color, material
         new Sphere(1e5,  new Vec(1e5 + 1, 40.8, 81.6),   new Vec(), new Vec(.75, .25, .25), Reflection.DIFFUSE),//Left
         new Sphere(1e5,  new Vec(-1e5 + 99, 40.8, 81.6), new Vec(), new Vec(.25, .25, .75), Reflection.DIFFUSE),//Rght
@@ -344,10 +480,11 @@ public class SmallPT {
         new Sphere(1e5,  new Vec(50, -1e5 + 81.6, 81.6), new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Top
         new Sphere(13, new Vec(27, 13, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
         new Sphere(10, new Vec(73, 10, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
-        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(2, 2, 2), new Vec(), Reflection.DIFFUSE), //Lite
+        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(6, 6, 6), new Vec(), Reflection.DIFFUSE), //Lite
         new Plane(40, 30, new Vec(30, 0, 60), new BitmapTexture("/duke600px.png")),
-        new Sphere(10, new Vec(17, 10, 85), new BitmapTexture("/Earth-hires.jpg", .55, 3.2)),
-        new Plane(32, 24, new Vec(45, 0, 90), new EmissionTexture("/duke600px.png"))
+        new Sphere(10, new Vec(80, 40, 85), new BitmapTexture("/Earth-hires.jpg", .65, 1.5)),
+        new Plane(32, 24, new Vec(45, 0, 100), new EmissionTexture("/duke600px.png")),
+        new PolygonSurface(25, new Vec(27, 52, 70), NapoData.cod, NapoData.jun, new SolidTexture(new Vec(), new Vec(.25, .5, .75), DIFFUSE))
     };
 
     static double clamp(double x) {
@@ -360,12 +497,12 @@ public class SmallPT {
 
     static boolean intersect(Ray r, double[] t, Surface[] robj) {
         t[0] = INF;
-        for (int i = 0; i < spheres.length; ++i) {
-            Surface obj = spheres[i];
-            double d = obj.intersect(r);
-            if (d != 0 && (d < t[0])) {
+        for (Surface obj : spheres) {
+            Surface[] cobj = {null};
+            double d = obj.intersect(r, cobj);
+            if (d != 0 && d < t[0]) {
                 t[0] = d;
-                robj[0] = obj;
+                robj[0] = cobj[0];
             }
         }
         return t[0] < INF;
