@@ -13,14 +13,17 @@ package naoki.smallpt;
 import static naoki.smallpt.SmallPT.Reflection.DIFFUSE;
 import static org.apache.commons.math3.util.FastMath.abs;
 import static org.apache.commons.math3.util.FastMath.asin;
+import static org.apache.commons.math3.util.FastMath.atan;
 import static org.apache.commons.math3.util.FastMath.atan2;
 import static org.apache.commons.math3.util.FastMath.cos;
 import static org.apache.commons.math3.util.FastMath.floor;
+import static org.apache.commons.math3.util.FastMath.log;
 import static org.apache.commons.math3.util.FastMath.max;
 import static org.apache.commons.math3.util.FastMath.min;
 import static org.apache.commons.math3.util.FastMath.pow;
 import static org.apache.commons.math3.util.FastMath.sin;
 import static org.apache.commons.math3.util.FastMath.sqrt;
+import static org.apache.commons.math3.util.FastMath.tan;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -113,7 +116,7 @@ public class SmallPT {
     }
 
     static enum Reflection {
-        DIFFUSE, SPECULAR, REFRECTION
+        DIFFUSE, SPECULAR, REFRECTION, GLOSSY
     }  // material types, used in radiance()
 
     static abstract class Surface {
@@ -480,11 +483,12 @@ public class SmallPT {
         new Sphere(1e5,  new Vec(50, -1e5 + 81.6, 81.6), new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Top
         new Sphere(13, new Vec(27, 13, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
         new Sphere(10, new Vec(73, 10, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
-        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(6, 6, 6), new Vec(), Reflection.DIFFUSE), //Lite
+        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(12,12, 12), new Vec(), Reflection.DIFFUSE), //Lite
         new Plane(40, 30, new Vec(30, 0, 60), new BitmapTexture("/duke600px.png")),
-        new Sphere(10, new Vec(80, 40, 85), new BitmapTexture("/Earth-hires.jpg", .65, 1.5)),
+        //new Sphere(10, new Vec(80, 40, 85), new BitmapTexture("/Earth-hires.jpg", .65, 1.5)),
         new Plane(32, 24, new Vec(45, 0, 100), new EmissionTexture("/duke600px.png")),
-        new PolygonSurface(25, new Vec(27, 52, 70), NapoData.cod, NapoData.jun, new SolidTexture(new Vec(), new Vec(.25, .5, .75), DIFFUSE))
+        new Sphere(10, new Vec(20, 10, 90), new Vec(), new Vec(.25, .6, .3), Reflection.GLOSSY),
+        new PolygonSurface(23, new Vec(27, 40, 30), NapoData.cod, NapoData.jun, new SolidTexture(new Vec(), new Vec(.25, .5, .75), Reflection.GLOSSY))
     };
 
     static double clamp(double x) {
@@ -540,7 +544,7 @@ public class SmallPT {
         if (null == tex.reflection) {
             throw new IllegalStateException();
         } else switch(tex.reflection) {
-            case DIFFUSE:
+            case DIFFUSE: {
                 double r1 = 2 * Math.PI * getRandom(),
                         r2 = getRandom(),
                         r2s = sqrt(r2);
@@ -549,10 +553,12 @@ public class SmallPT {
                         v = w.mod(u);
                 Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
                 return tex.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
-            case SPECULAR:
+            }
+            case SPECULAR: {
                 // Ideal SPECULAR reflection
                 return tex.emission.add(f.vecmul(radiance(new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)));
-            case REFRECTION:
+            }
+            case REFRECTION: {
                 Ray reflectionRay = new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist))));     // Ideal dielectric REFRACTION
                 boolean into = n.dot(nl) > 0;                // Ray from outside going in?
                 double nc = 1,
@@ -576,6 +582,36 @@ public class SmallPT {
                 return tex.emission.add(f.vecmul(depth > 2 ? (getRandom() < probability // Russian roulette
                         ? radiance(reflectionRay, depth).mul(RP) : radiance(new Ray(x, tdir), depth).mul(TP))
                         : radiance(reflectionRay, depth).mul(Re).add(radiance(new Ray(x, tdir), depth).mul(Tr))));
+            }
+            case GLOSSY: {
+                double lo_s = .75;
+                double alphaX = .2, alphaY = .2; // need to change by param
+                Vec in = r.dist.mul(-1);
+                Vec w = nl;
+                Vec u = (abs(w.x) > .1 ? Vec.UNIT_Y : Vec.UNIT_X).mod(w).normalize();
+                Vec v = w.mod(u);
+                
+                Vec halfv, dir;
+                do {
+                    double u1 = getRandom();
+                    double u2 = getRandom();
+                    double phi = atan(alphaY / alphaX * tan(2.0 * Math.PI * u2));
+                    if (.25 <= u2 && u2 <= .75) {
+                        phi += Math.PI;
+                    } else if (u2 > .75) {
+                        phi += 2 * Math.PI;
+                    }
+                    double theta = atan(sqrt(-log(u1) / 
+                            (pow(cos(phi), 2) / pow(alphaX, 2) + pow(sin(phi), 2) / pow(alphaY, 2))));
+                    halfv = u.mul(cos(phi) * sin(theta)).add(v.mul(sin(phi) * sin(theta))).add(w.mul(cos(theta)));
+                    dir = halfv.mul(2 * in.dot(halfv)).sub(in);
+                } while (nl.dot(dir) < 0);
+                
+                double weight = lo_s * halfv.dot(in) * pow(halfv.dot(nl), 3) *
+                        sqrt(dir.dot(nl) / in.dot(nl));
+                return tex.emission.add(tex.color.vecmul(radiance(new Ray(x, dir), depth)).mul(weight / p));
+            }
+                
             default:
                 throw new IllegalStateException();
         }
