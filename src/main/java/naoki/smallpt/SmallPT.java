@@ -328,7 +328,7 @@ public class SmallPT {
     }
     
     static class EmissionTexture extends BitmapTexture {
-        final Vec emission = new Vec(12, 12, 12);
+        final Vec emission = new Vec(9, 9, 9);
         final Vec color = Vec.ZERO;
         public EmissionTexture(String file) {
             super(file);
@@ -475,21 +475,26 @@ public class SmallPT {
     }
 
     static final Surface spheres[] = {//Scene: radius, position, emission, color, material
-        new Sphere(1e5,  new Vec(1e5 + 1, 40.8, 81.6),   new Vec(), new Vec(.75, .25, .25), Reflection.DIFFUSE),//Left
-        new Sphere(1e5,  new Vec(-1e5 + 99, 40.8, 81.6), new Vec(), new Vec(.25, .25, .75), Reflection.DIFFUSE),//Rght
-        new Sphere(1e5,  new Vec(50, 40.8, 1e5),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Back
+        new Sphere(1e5,  new Vec(1e5 + 1 - 10, 40.8, 81.6),   new Vec(), new Vec(.75, .25, .25), Reflection.DIFFUSE),//Left
+        new Sphere(1e5,  new Vec(-1e5 + 99 + 10, 40.8, 81.6), new Vec(), new Vec(.25, .25, .75), Reflection.DIFFUSE),//Rght
+        new Sphere(1e5,  new Vec(50, 40.8, 1e5 - 300),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Back
+        new Sphere(8, new Vec(80, 8, -150), new Vec(10, 10, 10), new Vec(), Reflection.DIFFUSE),
+        new Sphere(10, new Vec(20, 10, -160), new Vec(), new Vec(.25, .75, .75), Reflection.DIFFUSE),
+        
         new Sphere(1e5,  new Vec(50, 40.8, -1e5 + 170),  new Vec(), new Vec(), Reflection.DIFFUSE),//Frnt
         new Sphere(1e5,  new Vec(50, 1e5, 81.6),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Botm
         new Sphere(1e5,  new Vec(50, -1e5 + 81.6, 81.6), new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Top
-        new Sphere(13, new Vec(27, 13, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
-        new Sphere(10, new Vec(73, 10, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
-        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(12,12, 12), new Vec(), Reflection.DIFFUSE), //Lite
-        new Plane(40, 30, new Vec(30, 0, 60), new BitmapTexture("/duke600px.png")),
-        //new Sphere(10, new Vec(80, 40, 85), new BitmapTexture("/Earth-hires.jpg", .65, 1.5)),
-        new Plane(32, 24, new Vec(45, 0, 100), new EmissionTexture("/duke600px.png")),
-        new Sphere(10, new Vec(20, 10, 90), new Vec(), new Vec(.25, .6, .3), Reflection.GLOSSY),
-        new PolygonSurface(23, new Vec(27, 40, 30), NapoData.cod, NapoData.jun, new SolidTexture(new Vec(), new Vec(.25, .5, .75), Reflection.GLOSSY))
+        new Sphere(13, new Vec(22, 13, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
+        new Sphere(10, new Vec(78, 10, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
+        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(12, 12, 12), new Vec(), Reflection.DIFFUSE), //Lite
+        new Plane(40, 30, new Vec(32, 0, 60), new BitmapTexture("/duke600px.png")),
+        new Sphere(10, new Vec(90, 40, 80), new BitmapTexture("/Earth-hires.jpg", .65, 1.5)),
+        //new Plane(24, 16, new Vec(25, 0, 72), new EmissionTexture("/duke600px.png")),
+        new Sphere(10, new Vec(15, 10, 90), new Vec(), new Vec(.25, .6, .3), Reflection.GLOSSY),
+        new PolygonSurface(23, new Vec(17, 55, 65), NapoData.cod, NapoData.jun, new SolidTexture(new Vec(), new Vec(.25, .5, .75), Reflection.GLOSSY))
     };
+    static final double FOCAL_Z = 60;
+    static final double LENS_RAD = 1.7;
 
     static double clamp(double x) {
         return x < 0 ? 0 : x > 1 ? 1 : x;
@@ -585,7 +590,7 @@ public class SmallPT {
             }
             case GLOSSY: {
                 double lo_s = .75;
-                double alphaX = .2, alphaY = .2; // need to change by param
+                double alphaX = .25, alphaY = .25; // need to change by param
                 Vec in = r.dist.mul(-1);
                 Vec w = nl;
                 Vec u = (abs(w.x) > .1 ? Vec.UNIT_Y : Vec.UNIT_X).mod(w).normalize();
@@ -617,12 +622,53 @@ public class SmallPT {
         }
     }
 
+    // http://l2program.co.uk/900/concentric-disk-sampling
+    // https://www.dartdocs.org/documentation/dartray/0.0.1/core/ConcentricSampleDisk.html
+    static void concentricSampleDisk(double u1, double u2, double[] dx, double[] dy) {
+        double r, theta;
+        double sx = 2 * u1 - 1;
+        double sy = 2 * u2 - 1;
+        
+        if (sx == 0 && sy == 0) {
+            dx[0] = 0;
+            dy[0] = 0;
+            return;
+        }
+        
+        if (sx >= -sy) {
+            if (sx > sy) {
+                r = sx;
+                if (sy > 0) {
+                    theta = sy / r;
+                } else {
+                    theta = 8 + sy / r;
+                }
+            } else {
+                r = sy;
+                theta = 2 - sx / r;
+            }
+        } else {
+            if (sx <= sy) {
+                r = -sx;
+                theta = 4 - sy / r;
+            } else {
+                r = -sy;
+                theta = 6 + sx / r;
+            }
+        }
+        theta *= Math.PI / 4;
+        dx[0] = r * cos(theta);
+        dy[0] = r * sin(theta);
+    }
+    
+    static final double CAMERA_Z = 295.6;
+    static final double SCREEN_Z = 140;
     public static void main(String... argv) throws IOException {
         int w = 1024,
                 h = 768,
                 samps = (argv.length > 0 ? Integer.parseInt(argv[0]) : SAMPLES_DEFAULT )/ 4; // # samples
 
-        Ray cam = new Ray(new Vec(50, 52, 295.6), new Vec(0, -0.042612, -1).normalize()); // cam pos, dir
+        Ray cam = new Ray(new Vec(50, 52, CAMERA_Z), new Vec(0, -0.042612, -1).normalize()); // cam pos, dir
         Vec cx = new Vec(w * .5135 / h, 0, 0),
                 cy = (cx.mod(cam.dist)).normalize().mul(.5135);
 
@@ -631,6 +677,7 @@ public class SmallPT {
         Arrays.fill(c, new Vec()); // Don't use ZERO
 
         AtomicInteger count = new AtomicInteger();
+        double[] lensU = {0}, lensV = {0};
         IntStream.range(0, h).parallel().forEach(y -> {
             System.out.printf("Rendering (%d spp) %5.2f%%%n", samps * 4, 100. * count.getAndIncrement() / (h - 1));
             for (int x = 0; x < w; x++) {// Loop cols
@@ -645,7 +692,16 @@ public class SmallPT {
                                     dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
                             Vec d = cx.mul(((sx + .5 + dx) / 2 + x) / w - .5)
                                     .add(cy.mul(((sy + .5 + dy) / 2 + y) / h - .5)).add(cam.dist);
-                            r = r.add(radiance(new Ray(cam.obj.add(d.mul(140)), d.normalize()), 0));
+                            //r = r.add(radiance(new Ray(cam.obj.add(d.mul(140)), d.normalize()), 0));
+                            Ray ray = new Ray(cam.obj.add(d.mul(SCREEN_Z)), d.normalize());
+                            double focalDistance = CAMERA_Z - SCREEN_Z - FOCAL_Z;
+                            concentricSampleDisk(getRandom(), getRandom(), lensU, lensV);
+                            double ft = abs(focalDistance / ray.dist.dot(cam.dist));
+                            Vec pFocus = ray.obj.add(ray.dist.mul(ft));
+                            Vec robj = ray.obj.add(new Vec(lensU[0] * LENS_RAD, lensV[0] * LENS_RAD, 0));
+                            Ray rray = new Ray(robj,
+                                    pFocus.sub(robj).normalize());
+                            r = r.add(radiance(rray, 0));
                         } // Camera rays are pushed ^^^^^ forward to start in interior
                         r = r.mul(1. / samps);
                         c[i] = c[i].add(new Vec(clamp(r.x), clamp(r.y), clamp(r.z)).mul(.25));

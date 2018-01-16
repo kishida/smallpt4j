@@ -3,7 +3,7 @@
 Transport of smallpt for Java
 http://www.kevinbeason.com/smallpt/
 
-<img src="results/image_poly25000.png" width="480px" alt="duke SPP=25000">
+<img src="results/image_dof25000.png" width="480px" alt="duke SPP=25000">
 
 Original transport is in `original` branch (https://github.com/kishida/smallpt4j/tree/original )
 
