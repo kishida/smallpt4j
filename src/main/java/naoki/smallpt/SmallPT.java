@@ -10,13 +10,12 @@ that is released under the MIT License.
 
 package naoki.smallpt;
 
-import static org.apache.commons.math3.util.FastMath.abs;
-import static org.apache.commons.math3.util.FastMath.cos;
-import static org.apache.commons.math3.util.FastMath.max;
-import static org.apache.commons.math3.util.FastMath.min;
-import static org.apache.commons.math3.util.FastMath.pow;
-import static org.apache.commons.math3.util.FastMath.sin;
-import static org.apache.commons.math3.util.FastMath.sqrt;
+import static java.lang.Math.abs;
+import static java.lang.Math.cos;
+import static java.lang.Math.min;
+import static java.lang.Math.pow;
+import static java.lang.Math.sin;
+import static java.lang.Math.sqrt;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -27,16 +26,17 @@ import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+//import jdk.incubator.vector.*;
 
 import javax.imageio.ImageIO;
 
 public class SmallPT {
 
     private static final int SAMPLES_DEFAULT = 40;
+    //private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_256;
+    static final class Vec {        
 
-    static final class Vec {        // Usage: time ./smallpt 5000  xv image.ppm
-
-        double x, y, z;                  // position, also color (r,g,b)
+        private double x, y, z;
 
         public Vec(double x, double y, double z) {
             this.x = x;
@@ -60,16 +60,17 @@ public class SmallPT {
             return new Vec(x * b, y * b, z * b);
         }
 
+        Vec div(double b) {
+            return new Vec(x / b, y / b, z / b);
+        }
+        
         Vec vecmul(Vec b) {
             return new Vec(x * b.x, y * b.y, z * b.z);
         }
 
         Vec normalize() {
             double dist = sqrt(x * x + y * y + z * z);
-            x /= dist;
-            y /= dist;
-            z /= dist;
-            return this;
+            return div(dist);
         }
 
         double dot(Vec b) {
@@ -79,6 +80,23 @@ public class SmallPT {
         Vec mod(Vec b) {
             return new Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
         }
+        
+        double max() {
+            return Math.max(x, Math.max(y, z));
+        }
+
+        public double getX() {
+            return x;
+        }
+
+        public double getY() {
+            return y;
+        }
+
+        public double getZ() {
+            return z;
+        }
+        
     }
 
     static final class Ray {
@@ -174,9 +192,9 @@ public class SmallPT {
         Vec n = x.sub(obj.pos).normalize();
         Vec nl = n.dot(r.dist) < 0 ? n : n.mul(-1);
         Vec f = obj.color;
-        double p = max(f.x, max(f.y, f.z)); // max refl
         depth++;
         if (depth > 5) {
+            double p = f.max(); // max refl
             if (depth < 50 && getRandom() < p) {// 最大反射回数を設定
                 f = f.mul(1 / p);
             } else {
@@ -191,7 +209,7 @@ public class SmallPT {
                         r2 = getRandom(),
                         r2s = sqrt(r2);
                 Vec w = nl,
-                        u = ((abs(w.x) > .1 ? UNIT_Y : UNIT_X).mod(w)).normalize(),
+                        u = ((abs(w.getX()) > .1 ? UNIT_Y : UNIT_X).mod(w)).normalize(),
                         v = w.mod(u);
                 Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
                 return obj.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
@@ -259,7 +277,7 @@ public class SmallPT {
                             r = r.add(radiance(new Ray(cam.obj.add(d.mul(140)), d.normalize()), 0));
                         } // Camera rays are pushed ^^^^^ forward to start in interior
                         r = r.mul(1. / samps);
-                        c[i] = c[i].add(new Vec(clamp(r.x), clamp(r.y), clamp(r.z)).mul(.25));
+                        c[i] = c[i].add(new Vec(clamp(r.getX()), clamp(r.getY()), clamp(r.getZ())).mul(.25));
                     }
                 }
             }
@@ -272,7 +290,7 @@ public class SmallPT {
                 Duration.between(start, finish));
         int[] imagesource = new int[w * h];
         for (int i = 0; i < w * h; ++i) {
-            imagesource[i] = 255 << 24 | toInt(c[i].x) << 16 | toInt(c[i].y) << 8 | toInt(c[i].z);
+            imagesource[i] = 255 << 24 | toInt(c[i].getX()) << 16 | toInt(c[i].getY()) << 8 | toInt(c[i].getZ());
         }
         BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         out.setRGB(0, 0, w, h, imagesource, 0, w);
