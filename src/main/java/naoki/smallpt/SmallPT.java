@@ -26,75 +26,81 @@ import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-//import jdk.incubator.vector.*;
+import jdk.incubator.vector.*;
 
 import javax.imageio.ImageIO;
 
 public class SmallPT {
 
     private static final int SAMPLES_DEFAULT = 40;
-    //private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_256;
+    private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_256;
     static final class Vec {        
 
-        private double x, y, z;
+        private DoubleVector v;
 
         public Vec(double x, double y, double z) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
+            v = DoubleVector.fromValues(SPECIES, x, y, z, 0);
         }
 
         Vec() {
-            this(0, 0, 0);
+            this(DoubleVector.zero(SPECIES));
+        }
+        
+        Vec(DoubleVector v) {
+            this.v = v;
         }
 
         Vec add(Vec b) {
-            return new Vec(x + b.x, y + b.y, z + b.z);
+            return new Vec(v.add(b.v));
         }
 
         Vec sub(Vec b) {
-            return new Vec(x - b.x, y - b.y, z - b.z);
+            return new Vec(v.sub(b.v));
         }
 
         Vec mul(double b) {
-            return new Vec(x * b, y * b, z * b);
+            return new Vec(v.mul(b));
         }
 
         Vec div(double b) {
-            return new Vec(x / b, y / b, z / b);
+            return new Vec(v.div(b));
         }
         
         Vec vecmul(Vec b) {
-            return new Vec(x * b.x, y * b.y, z * b.z);
+            return new Vec(v.mul(b.v));
         }
 
         Vec normalize() {
-            double dist = sqrt(x * x + y * y + z * z);
+            double dist = sqrt(v.mul(v).reduceLanes(VectorOperators.ADD));
             return div(dist);
         }
 
         double dot(Vec b) {
-            return x * b.x + y * b.y + z * b.z;
+            return v.mul(b.v).reduceLanes(VectorOperators.ADD);
         } // cross:
 
         Vec mod(Vec b) {
-            return new Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
+            return new Vec(
+                    DoubleVector.fromValues(SPECIES, getY(), getZ(), getX(), 0)
+                        .mul(DoubleVector.fromValues(SPECIES, b.getZ(), b.getX(), b.getY(), 0))
+                        .sub(DoubleVector.fromValues(SPECIES, getZ(), getX(), getY(), 0)
+                                .mul(DoubleVector.fromValues(SPECIES, b.getY(), b.getZ(), b.getX(), 0))));
         }
         
         double max() {
-            return Math.max(x, Math.max(y, z));
+            return v.reduceLanes(VectorOperators.MAX);
         }
 
         public double getX() {
-            return x;
+            return v.lane(0);
         }
 
         public double getY() {
-            return y;
+            return v.lane(1);
         }
 
         public double getZ() {
-            return z;
+            return v.lane(2);
         }
         
     }
