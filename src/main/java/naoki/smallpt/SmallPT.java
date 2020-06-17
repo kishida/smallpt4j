@@ -12,7 +12,6 @@ package naoki.smallpt;
 
 import static org.apache.commons.math3.util.FastMath.abs;
 import static org.apache.commons.math3.util.FastMath.cos;
-import static org.apache.commons.math3.util.FastMath.max;
 import static org.apache.commons.math3.util.FastMath.min;
 import static org.apache.commons.math3.util.FastMath.pow;
 import static org.apache.commons.math3.util.FastMath.sin;
@@ -78,6 +77,10 @@ public class SmallPT {
 
         Vec mod(Vec b) {
             return new Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
+        }
+        
+        double max() {
+            return Math.max(x, Math.max(y, z));
         }
     }
 
@@ -174,9 +177,9 @@ public class SmallPT {
         Vec n = x.sub(obj.pos).normalize();
         Vec nl = n.dot(r.dist) < 0 ? n : n.mul(-1);
         Vec f = obj.color;
-        double p = max(f.x, max(f.y, f.z)); // max refl
         depth++;
         if (depth > 5) {
+            double p = f.max(); // max refl
             if (depth < 50 && getRandom() < p) {// 最大反射回数を設定
                 f = f.mul(1 / p);
             } else {
