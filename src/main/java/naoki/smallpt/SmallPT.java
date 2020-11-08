@@ -34,12 +34,17 @@ public class SmallPT {
 
     private static final int SAMPLES_DEFAULT = 40;
     private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_256;
+    
+    static DoubleVector fromValues(double x, double y, double z) {
+        return DoubleVector.fromArray(SPECIES, new double[]{x, y, z, 0}, 0);
+    }
+    
     static final class Vec {        
 
         private DoubleVector v;
 
         public Vec(double x, double y, double z) {
-            v = DoubleVector.fromValues(SPECIES, x, y, z, 0);
+            v = fromValues(x, y, z);
         }
 
         Vec() {
@@ -81,10 +86,10 @@ public class SmallPT {
 
         Vec mod(Vec b) {
             return new Vec(
-                    DoubleVector.fromValues(SPECIES, getY(), getZ(), getX(), 0)
-                        .mul(DoubleVector.fromValues(SPECIES, b.getZ(), b.getX(), b.getY(), 0))
-                        .sub(DoubleVector.fromValues(SPECIES, getZ(), getX(), getY(), 0)
-                                .mul(DoubleVector.fromValues(SPECIES, b.getY(), b.getZ(), b.getX(), 0))));
+                    fromValues(getY(), getZ(), getX())
+                        .mul(fromValues(b.getZ(), b.getX(), b.getY()))
+                        .sub(fromValues(getZ(), getX(), getY())
+                                .mul(fromValues(b.getY(), b.getZ(), b.getX()))));
         }
         
         double max() {
