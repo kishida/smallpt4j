@@ -185,10 +185,10 @@ public class SmallPT {
                         u = normalize(mod(abs(getX(w)) > .1 ? UNIT_Y : UNIT_X, w)),
                         v = mod(w, u);
                 DoubleVector d = normalize((u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))));
-                return obj.emission.add(f.mul(radiance(new Ray(x, d), depth)));
+                return f.fma(radiance(new Ray(x, d), depth), obj.emission);
             case SPECULAR:
                 // Ideal SPECULAR reflection
-                return obj.emission.add(f.mul(radiance(new Ray(x, r.dist.sub(n.mul(2 * dot(n, r.dist)))), depth)));
+                return f.fma(radiance(new Ray(x, r.dist.sub(n.mul(2 * dot(n, r.dist)))), depth), obj.emission);
             case REFRECTION:
                 Ray reflectionRay = new Ray(x, r.dist.sub(n.mul(2 * dot(n, r.dist))));     // Ideal dielectric REFRACTION
                 boolean into = dot(n, nl) > 0;                // Ray from outside going in?
@@ -198,7 +198,7 @@ public class SmallPT {
                         ddn = dot(r.dist, nl),
                         cos2t = 1 - nnt * nnt * (1 - ddn * ddn);
                 if (cos2t < 0) { // Total internal reflection
-                    return obj.emission.add(f.mul(radiance(reflectionRay, depth)));
+                    return f.fma(radiance(reflectionRay, depth), obj.emission);
                 }
                 DoubleVector tdir = normalize(r.dist.mul(nnt).sub(n.mul((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t)))));
                 double a = nt - nc,
@@ -210,9 +210,9 @@ public class SmallPT {
                         probability = .25 + .5 * Re,
                         RP = Re / probability,
                         TP = Tr / (1 - probability);
-                return obj.emission.add(f.mul(depth > 2 ? (getRandom() < probability // Russian roulette
+                return f.fma(depth > 2 ? (getRandom() < probability // Russian roulette
                         ? radiance(reflectionRay, depth).mul(RP) : radiance(new Ray(x, tdir), depth).mul(TP))
-                        : radiance(reflectionRay, depth).mul(Re).add(radiance(new Ray(x, tdir), depth).mul(Tr))));
+                        : radiance(reflectionRay, depth).mul(Re).add(radiance(new Ray(x, tdir), depth).mul(Tr)), obj.emission);
             default:
                 throw new IllegalStateException();
         }
