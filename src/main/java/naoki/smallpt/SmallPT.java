@@ -38,83 +38,47 @@ public class SmallPT {
     static DoubleVector fromValues(double x, double y, double z) {
         return DoubleVector.fromArray(SPECIES, new double[]{x, y, z, 0}, 0);
     }
-    
-    static final class Vec {        
 
-        private DoubleVector v;
-
-        public Vec(double x, double y, double z) {
-            v = fromValues(x, y, z);
-        }
-
-        Vec() {
-            this(DoubleVector.zero(SPECIES));
-        }
-        
-        Vec(DoubleVector v) {
-            this.v = v;
-        }
-
-        Vec add(Vec b) {
-            return new Vec(v.add(b.v));
-        }
-
-        Vec sub(Vec b) {
-            return new Vec(v.sub(b.v));
-        }
-
-        Vec mul(double b) {
-            return new Vec(v.mul(b));
-        }
-
-        Vec div(double b) {
-            return new Vec(v.div(b));
-        }
-        
-        Vec vecmul(Vec b) {
-            return new Vec(v.mul(b.v));
-        }
-
-        Vec normalize() {
-            double dist = sqrt(v.mul(v).reduceLanes(VectorOperators.ADD));
-            return div(dist);
-        }
-
-        double dot(Vec b) {
-            return v.mul(b.v).reduceLanes(VectorOperators.ADD);
-        } // cross:
-
-        Vec mod(Vec b) {
-            return new Vec(
-                    fromValues(getY(), getZ(), getX())
-                        .mul(fromValues(b.getZ(), b.getX(), b.getY()))
-                        .sub(fromValues(getZ(), getX(), getY())
-                                .mul(fromValues(b.getY(), b.getZ(), b.getX()))));
-        }
-        
-        double max() {
-            return v.reduceLanes(VectorOperators.MAX);
-        }
-
-        public double getX() {
-            return v.lane(0);
-        }
-
-        public double getY() {
-            return v.lane(1);
-        }
-
-        public double getZ() {
-            return v.lane(2);
-        }
-        
+    static DoubleVector normalize(DoubleVector v) {
+        double dist = sqrt(v.mul(v).reduceLanes(VectorOperators.ADD));
+        return v.div(dist);
     }
 
+    static double dot(DoubleVector v, DoubleVector b) {
+        return v.mul(b).reduceLanes(VectorOperators.ADD);
+    } // cross:
+
+    static DoubleVector mod(DoubleVector v, DoubleVector b) {
+        double vx = getX(v), vy = getY(v), vz = getZ(v);
+        double bx = getX(b), by = getY(b), bz = getZ(b);
+        
+        return fromValues(
+                vy * bz - (vz * by), 
+                vz * bx - (vx * bz), 
+                vx * by - (vy * bx));
+    }
+
+    static double max(DoubleVector v) {
+        return v.reduceLanes(VectorOperators.MAX);
+    }
+
+    static double getX(DoubleVector v) {
+        return v.lane(0);
+    }
+
+    static double getY(DoubleVector v) {
+        return v.lane(1);
+    }
+
+    static double getZ(DoubleVector v) {
+        return v.lane(2);
+    }    
+    
     static final class Ray {
 
-        final Vec obj, dist;
+        final DoubleVector obj, dist;
 
-        public Ray(Vec o, Vec d) {
+        public Ray(DoubleVector o, DoubleVector d) {
             this.obj = o;
             this.dist = d;
         }
@@ -123,15 +87,15 @@ public class SmallPT {
 
     private static enum Reflection {
         DIFFUSE, SPECULAR, REFRECTION
-    };  // material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()
+    };  // material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()// material types, used in radiance()
 
     static final class Sphere {
 
         final double rad;       // radius
-        final Vec pos, emission, color;      // position, emission, color
+        final DoubleVector pos, emission, color;      // position, emission, color
         final Reflection reflection;      // reflection type (DIFFuse, SPECular, REFRactive)
 
-        public Sphere(double rad, Vec p, Vec e, Vec c, Reflection refl) {
+        public Sphere(double rad, DoubleVector p, DoubleVector e, DoubleVector c, Reflection refl) {
             this.rad = rad;
             this.pos = p;
             this.emission = e;
@@ -140,11 +104,11 @@ public class SmallPT {
         }
 
         double intersect(Ray r) { // returns distance, 0 if nohit
-            Vec op = pos.sub(r.obj); // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
+            DoubleVector op = pos.sub(r.obj); // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
             double t,
                     eps = 1e-4,
-                    b = op.dot(r.dist),
-                    det = b * b - op.dot(op) + rad * rad;
+                    b = dot(op, r.dist),
+                    det = b * b - dot(op, op) + rad * rad;
             if (det < 0) {
                 return 0;
             } else {
@@ -154,15 +118,15 @@ public class SmallPT {
         }
     };
     static final Sphere spheres[] = {//Scene: radius, position, emission, color, material
-        new Sphere(1e5,  new Vec(1e5 + 1, 40.8, 81.6),   new Vec(), new Vec(.75, .25, .25), Reflection.DIFFUSE),//Left
-        new Sphere(1e5,  new Vec(-1e5 + 99, 40.8, 81.6), new Vec(), new Vec(.25, .25, .75), Reflection.DIFFUSE),//Rght
-        new Sphere(1e5,  new Vec(50, 40.8, 1e5),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Back
-        new Sphere(1e5,  new Vec(50, 40.8, -1e5 + 170),  new Vec(), new Vec(), Reflection.DIFFUSE),//Frnt
-        new Sphere(1e5,  new Vec(50, 1e5, 81.6),         new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Botm
-        new Sphere(1e5,  new Vec(50, -1e5 + 81.6, 81.6), new Vec(), new Vec(.75, .75, .75), Reflection.DIFFUSE),//Top
-        new Sphere(16.5, new Vec(27, 16.5, 47),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
-        new Sphere(16.5, new Vec(73, 16.5, 78),          new Vec(), new Vec(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
-        new Sphere(600,  new Vec(50, 681.6 - .27, 81.6), new Vec(12, 12, 12), new Vec(), Reflection.DIFFUSE) //Lite
+        new Sphere(1e5,  fromValues(1e5 + 1, 40.8, 81.6),   DoubleVector.zero(SPECIES), fromValues(.75, .25, .25), Reflection.DIFFUSE),//Left
+        new Sphere(1e5,  fromValues(-1e5 + 99, 40.8, 81.6), DoubleVector.zero(SPECIES), fromValues(.25, .25, .75), Reflection.DIFFUSE),//Rght
+        new Sphere(1e5,  fromValues(50, 40.8, 1e5),         DoubleVector.zero(SPECIES), fromValues(.75, .75, .75), Reflection.DIFFUSE),//Back
+        new Sphere(1e5,  fromValues(50, 40.8, -1e5 + 170),  DoubleVector.zero(SPECIES), DoubleVector.zero(SPECIES), Reflection.DIFFUSE),//Frnt
+        new Sphere(1e5,  fromValues(50, 1e5, 81.6),         DoubleVector.zero(SPECIES), fromValues(.75, .75, .75), Reflection.DIFFUSE),//Botm
+        new Sphere(1e5,  fromValues(50, -1e5 + 81.6, 81.6), DoubleVector.zero(SPECIES), fromValues(.75, .75, .75), Reflection.DIFFUSE),//Top
+        new Sphere(16.5, fromValues(27, 16.5, 47),          DoubleVector.zero(SPECIES), fromValues(1, 1, 1).mul(.999), Reflection.SPECULAR),//Mirr
+        new Sphere(16.5, fromValues(73, 16.5, 78),          DoubleVector.zero(SPECIES), fromValues(1, 1, 1).mul(.999), Reflection.REFRECTION),//Glas
+        new Sphere(600,  fromValues(50, 681.6 - .27, 81.6), fromValues(12, 12, 12), DoubleVector.zero(SPECIES), Reflection.DIFFUSE) //Lite
     };
 
     static double clamp(double x) {
@@ -173,8 +137,8 @@ public class SmallPT {
         return min(255, (int) (pow(clamp(x), 1 / 2.2) * 255 + .5));
     }
     private static final double INF = 1e20;
-    private static final Vec UNIT_X = new Vec(1, 0, 0);
-    private static final Vec UNIT_Y = new Vec(0, 1, 0);
+    private static final DoubleVector UNIT_X = fromValues(1, 0, 0);
+    private static final DoubleVector UNIT_Y = fromValues(0, 1, 0);
     static boolean intersect(Ray r, double[] t, int[] id) {
         t[0] = INF;
         for (int i = 0; i < spheres.length; ++i) {
@@ -191,21 +155,21 @@ public class SmallPT {
         return ThreadLocalRandom.current().nextDouble();
     }
     
-    static Vec radiance(Ray r, int depth) {
+    static DoubleVector radiance(Ray r, int depth) {
         double[] t = {0};                               // distance to intersection
         int[] id = {0};                               // id of intersected object
         if (!intersect(r, t, id)) {
-            return new Vec(); // if miss, return black
+            return DoubleVector.zero(SPECIES); // if miss, return black
         }
         Sphere obj = spheres[id[0]];        // the hit object
-        Vec x = r.obj.add(r.dist.mul(t[0]));
+        DoubleVector x = r.obj.add(r.dist.mul(t[0]));
 
-        Vec n = x.sub(obj.pos).normalize();
-        Vec nl = n.dot(r.dist) < 0 ? n : n.mul(-1);
-        Vec f = obj.color;
+        DoubleVector n = normalize(x.sub(obj.pos));
+        DoubleVector nl = dot(n, r.dist) < 0 ? n : n.mul(-1);
+        DoubleVector f = obj.color;
         depth++;
         if (depth > 5) {
-            double p = f.max(); // max refl
+            double p = max(f); // max refl
             if (depth < 50 && getRandom() < p) {// 最大反射回数を設定
                 f = f.mul(1 / p);
             } else {
@@ -219,36 +183,36 @@ public class SmallPT {
                 double r1 = 2 * Math.PI * getRandom(),
                         r2 = getRandom(),
                         r2s = sqrt(r2);
-                Vec w = nl,
-                        u = ((abs(w.getX()) > .1 ? UNIT_Y : UNIT_X).mod(w)).normalize(),
-                        v = w.mod(u);
-                Vec d = (u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))).normalize();
-                return obj.emission.add(f.vecmul(radiance(new Ray(x, d), depth)));
+                DoubleVector w = nl,
+                        u = normalize(mod(abs(getX(w)) > .1 ? UNIT_Y : UNIT_X, w)),
+                        v = mod(w, u);
+                DoubleVector d = normalize((u.mul(cos(r1) * r2s).add(v.mul(sin(r1) * r2s)).add(w.mul(sqrt(1 - r2)))));
+                return obj.emission.add(f.mul(radiance(new Ray(x, d), depth)));
             case SPECULAR:
                 // Ideal SPECULAR reflection
-                return obj.emission.add(f.vecmul(radiance(new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist)))), depth)));
+                return obj.emission.add(f.mul(radiance(new Ray(x, r.dist.sub(n.mul(2 * dot(n, r.dist)))), depth)));
             case REFRECTION:
-                Ray reflectionRay = new Ray(x, r.dist.sub(n.mul(2 * n.dot(r.dist))));     // Ideal dielectric REFRACTION
-                boolean into = n.dot(nl) > 0;                // Ray from outside going in?
+                Ray reflectionRay = new Ray(x, r.dist.sub(n.mul(2 * dot(n, r.dist))));     // Ideal dielectric REFRACTION
+                boolean into = dot(n, nl) > 0;                // Ray from outside going in?
                 double nc = 1,
                         nt = 1.5,
                         nnt = into ? nc / nt : nt / nc,
-                        ddn = r.dist.dot(nl),
+                        ddn = dot(r.dist, nl),
                         cos2t = 1 - nnt * nnt * (1 - ddn * ddn);
                 if (cos2t < 0) { // Total internal reflection
-                    return obj.emission.add(f.vecmul(radiance(reflectionRay, depth)));
+                    return obj.emission.add(f.mul(radiance(reflectionRay, depth)));
                 }
-                Vec tdir = (r.dist.mul(nnt).sub(n.mul((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t))))).normalize();
+                DoubleVector tdir = normalize(r.dist.mul(nnt).sub(n.mul((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t)))));
                 double a = nt - nc,
                         b = nt + nc,
                         R0 = a * a / (b * b),
-                        c = 1 - (into ? -ddn : tdir.dot(n));
+                        c = 1 - (into ? -ddn : dot(tdir, n));
                 double Re = R0 + (1 - R0) * c * c * c * c * c,
                         Tr = 1 - Re,
                         probability = .25 + .5 * Re,
                         RP = Re / probability,
                         TP = Tr / (1 - probability);
-                return obj.emission.add(f.vecmul(depth > 2 ? (getRandom() < probability // Russian roulette
+                return obj.emission.add(f.mul(depth > 2 ? (getRandom() < probability // Russian roulette
                         ? radiance(reflectionRay, depth).mul(RP) : radiance(new Ray(x, tdir), depth).mul(TP))
                         : radiance(reflectionRay, depth).mul(Re).add(radiance(new Ray(x, tdir), depth).mul(Tr))));
             default:
@@ -261,13 +225,13 @@ public class SmallPT {
                 h = 768,
                 samps = (argv.length == 2 ? Integer.parseInt(argv[1]) : SAMPLES_DEFAULT )/ 4; // # samples
 
-        Ray cam = new Ray(new Vec(50, 52, 295.6), new Vec(0, -0.042612, -1).normalize()); // cam pos, dir
-        Vec cx = new Vec(w * .5135 / h, 0, 0),
-                cy = (cx.mod(cam.dist)).normalize().mul(.5135);
+        Ray cam = new Ray(fromValues(50, 52, 295.6), normalize(fromValues(0, -0.042612, -1))); // cam pos, dir
+        DoubleVector cx = fromValues(w * .5135 / h, 0, 0),
+                cy = normalize(mod(cx, cam.dist)).mul(.5135);
 
         Instant start = Instant.now();
-        Vec[] c = new Vec[w * h];
-        Arrays.fill(c, new Vec());
+        DoubleVector[] c = new DoubleVector[w * h];
+        Arrays.fill(c, DoubleVector.zero(SPECIES));
 
         AtomicInteger count = new AtomicInteger();
         IntStream.range(0, h).parallel().forEach(y -> {
@@ -277,18 +241,18 @@ public class SmallPT {
                 int i = (h - y - 1) * w + x;
                 for (int sy = 0; sy < 2; sy++) { // 2x2 subpixel rows
                     for (int sx = 0; sx < 2; sx++) {        // 2x2 subpixel cols
-                        Vec r = new Vec();
+                        DoubleVector r = DoubleVector.zero(SPECIES);
                         for (int s = 0; s < samps; s++) {
                             double r1 = 2 * getRandom(),
                                     dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
                             double r2 = 2 * getRandom(),
                                     dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
-                            Vec d = cx.mul(((sx + .5 + dx) / 2 + x) / w - .5)
+                            DoubleVector d = cx.mul(((sx + .5 + dx) / 2 + x) / w - .5)
                                     .add(cy.mul(((sy + .5 + dy) / 2 + y) / h - .5)).add(cam.dist);
-                            r = r.add(radiance(new Ray(cam.obj.add(d.mul(140)), d.normalize()), 0));
+                            r = r.add(radiance(new Ray(cam.obj.add(d.mul(140)), normalize(d)), 0));
                         } // Camera rays are pushed ^^^^^ forward to start in interior
                         r = r.mul(1. / samps);
-                        c[i] = c[i].add(new Vec(clamp(r.getX()), clamp(r.getY()), clamp(r.getZ())).mul(.25));
+                        c[i] = c[i].add(fromValues(clamp(getX(r)), clamp(getY(r)), clamp(getZ(r))).mul(.25));
                     }
                 }
             }
@@ -301,7 +265,7 @@ public class SmallPT {
                 Duration.between(start, finish));
         int[] imagesource = new int[w * h];
         for (int i = 0; i < w * h; ++i) {
-            imagesource[i] = 255 << 24 | toInt(c[i].getX()) << 16 | toInt(c[i].getY()) << 8 | toInt(c[i].getZ());
+            imagesource[i] = 255 << 24 | toInt(getX(c[i])) << 16 | toInt(getY(c[i])) << 8 | toInt(getZ(c[i]));
         }
         BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         out.setRGB(0, 0, w, h, imagesource, 0, w);
