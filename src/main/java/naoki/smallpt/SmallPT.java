@@ -48,14 +48,12 @@ public class SmallPT {
         return v.mul(b).reduceLanes(VectorOperators.ADD);
     } // cross:
 
+    static VectorShuffle yzx = VectorShuffle.fromValues(SPECIES, 1, 2, 0, 3);
+    static VectorShuffle zxy = VectorShuffle.fromValues(SPECIES, 2, 0, 1, 3);
+    
     static DoubleVector mod(DoubleVector v, DoubleVector b) {
-        double vx = getX(v), vy = getY(v), vz = getZ(v);
-        double bx = getX(b), by = getY(b), bz = getZ(b);
-        
-        return fromValues(
-                vy * bz - (vz * by), 
-                vz * bx - (vx * bz), 
-                vx * by - (vy * bx));
+        // return v.rearrange(yzx).mul(b.rearrange(zxy)).sub(v.rearrange(zxy).mul(b.rearrange(yzx)));
+        return v.mul(b.rearrange(yzx)).sub(v.rearrange(yzx).mul(b)).rearrange(yzx);
     }
 
     static double max(DoubleVector v) {
