@@ -49,7 +49,6 @@ public class SmallPT {
     } // cross:
 
     static VectorShuffle yzx = VectorShuffle.fromValues(SPECIES, 1, 2, 0, 3);
-    static VectorShuffle zxy = VectorShuffle.fromValues(SPECIES, 2, 0, 1, 3);
     
     static DoubleVector mod(DoubleVector v, DoubleVector b) {
         // return v.rearrange(yzx).mul(b.rearrange(zxy)).sub(v.rearrange(zxy).mul(b.rearrange(yzx)));
